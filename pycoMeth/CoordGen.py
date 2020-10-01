@@ -2,8 +2,10 @@
 
 #~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~#
 # Standard library imports
+from __future__ import annotations
 import os
 from collections import OrderedDict, namedtuple, Counter
+
 
 # Third party imports
 from pyfaidx import Fasta
@@ -41,7 +43,7 @@ class CoordGen():
         for name in self.chr_name_id.keys():
             yield("Name:{}\tID:{}\tLength:{}".format(name, self.chr_name_id[name], self.chr_name_len[name]))
 
-    def __call__ (self, chr_name, start, end):
+    def __call__ (self, chr_name, start, end) -> Coord:
         """
         Check passed coordinates and generate a namedtuple containing a chromosome id, start end End
         The chromosome id is an integer corrersponding to the order of the reference in the index.

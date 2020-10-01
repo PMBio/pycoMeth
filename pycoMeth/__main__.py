@@ -60,12 +60,16 @@ def main(args=None):
     sp_met = subparsers.add_parser("Meth_Comp", description=doc_func(f))
     sp_met.set_defaults(func=f)
     sp_met_io = sp_met.add_argument_group("Input/Output options")
-    arg_from_docstr(sp_met_io, f, "aggregate_fn_list", "i")
+    arg_from_docstr(sp_met_io, f, "h5_file_list", "i")
     arg_from_docstr(sp_met_io, f, "ref_fasta_fn", "f")
+    arg_from_docstr(sp_met_io, f, "read_group_file", "r")
+    arg_from_docstr(sp_met_io, f, "interval_bed_fn", "a")
     arg_from_docstr(sp_met_io, f, "output_bed_fn", "b")
     arg_from_docstr(sp_met_io, f, "output_tsv_fn", "t")
+    arg_from_docstr(sp_met_io, f, "interval_size", "n")
     sp_met_ms = sp_met.add_argument_group("Misc options")
     arg_from_docstr(sp_met_ms, f, "max_missing", "m")
+    arg_from_docstr(sp_met_ms, f, "worker_processes", "w")
     arg_from_docstr(sp_met_ms, f, "min_diff_llr", "l")
     arg_from_docstr(sp_met_ms, f, "sample_id_list", "s")
     arg_from_docstr(sp_met_ms, f, "pvalue_adj_method")
@@ -113,4 +117,9 @@ def main(args=None):
 
     # Parse args and call subfunction
     args = parser.parse_args()
+
     args.func(**vars(args))
+
+
+if __name__ == '__main__':
+    main()
