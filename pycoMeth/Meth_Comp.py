@@ -21,11 +21,10 @@ import nanoepitools.nanopolish_container as npc
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~ Worker methods ~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
-
 class MethCompWorker:
     def __init__(
         self,
-        read_sample_assignment,
+        h5_read_groups_key,
         sample_id_list,
         h5_file_list,
         min_diff_llr,
@@ -33,22 +32,20 @@ class MethCompWorker:
         input_type,
         pvalue_method,
     ):
+        self.h5_read_groups_key = h5_read_groups_key
         self.min_diff_llr = min_diff_llr
         self.min_samples = min_samples
         self.input_type = input_type
-        self.read_sample_assignment = read_sample_assignment
         self.pvalue_method = pvalue_method
-
+        self.min_pval = np.nextafter(float(0), float(1))
         self.sample_hf_files = {}
-        if read_sample_assignment is None:
+        
+        if h5_read_groups_key is None:
             for sample_id, h5_file in zip(sample_id_list, h5_file_list):
                 hf = npc.MetcallH5Container(h5_file, "r")
-                # hf.create_chunk_index(force_update=False)
                 self.sample_hf_files[sample_id] = hf
-
         else:
             hf = npc.MetcallH5Container(h5_file_list[0], "r")
-            # hf.create_chunk_index(force_update=False)
             for sample_id in sample_id_list:
                 self.sample_hf_files[sample_id] = hf
 
@@ -143,13 +140,9 @@ class MethCompWorker:
             )
             llrs = interval_container.get_llrs()
             pos = interval_container.get_ranges()[:, 0]
-            if self.read_sample_assignment is not None:
-                read_samples = np.array(
-                    [
-                        self.read_sample_assignment[rn.decode()]
-                        for rn in interval_container.get_read_names()
-                    ]
-                )
+            
+            if self.h5_read_groups_key is not None:
+                read_samples = interval_container.get_read_groups(self.h5_read_groups_key)
                 mask = read_samples == sample_id
                 llrs = llrs[mask]
                 pos = pos[mask]
@@ -250,6 +243,7 @@ def Meth_Comp(
     read_sample_assignment = None
     if read_group_file is not None:
         read_sample_assignment = read_readgroups_file(read_group_file)
+        read_sample_assignment = read_sample_assignment.loc[read_sample_assignment['group_set'] != -1]
         read_sample_assignment = read_sample_assignment.to_dict()["group"]
         # Number of read groups minus the "-1" which stands for "unphased"
         sample_id_list = sorted(
@@ -312,6 +306,20 @@ def Meth_Comp(
             only_tested_sites=only_tested_sites,
         )
 
+        h5_read_groups_key = "pycometh_rg" # TODO expose parameter
+        # Ensure every h5file is readable and has an index
+        try:
+            for h5_file in h5_file_list:
+                hf = npc.MetcallH5Container(h5_file, "a")
+                hf.create_chunk_index(force_update=False)
+                if read_sample_assignment is not None:
+                    hf.annotate_read_groups(h5_read_groups_key, read_sample_assignment, exists_ok=True, overwrite=False)
+                hf.close()
+        except:
+            raise pycoMethError("Unable to read/write h5 files. Must be writable to create index!")
+        
+        del read_sample_assignment
+
         log.info("Starting asynchronous file parsing")
         with tqdm(
             total=num_intervals,
@@ -326,7 +334,7 @@ def Meth_Comp(
             pool = Pool(
                 worker_processes,
                 initializer=lambda: initializer(
-                    read_sample_assignment=read_sample_assignment,
+                    h5_read_groups_key=h5_read_groups_key,
                     sample_id_list=sample_id_list,
                     h5_file_list=h5_file_list,
                     min_diff_llr=min_diff_llr,
@@ -354,7 +362,7 @@ def Meth_Comp(
             async_results = []
             for interval in intervals_gen:
                 if abort:
-                    break
+                    raise pycoMethError("Aborting due to error in worker thread")
                 ar = pool.apply_async(
                     worker_function,
                     args=[interval],
