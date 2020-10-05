@@ -3,7 +3,8 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Standard library imports
 import itertools
-from typing import IO, Generator
+from typing import IO, List, Generator
+import fileinput
 
 # Third party imports
 from tqdm import tqdm
@@ -21,6 +22,7 @@ import nanoepitools.nanopolish_container as npc
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~ Worker methods ~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
+
 class MethCompWorker:
     def __init__(
         self,
@@ -29,17 +31,15 @@ class MethCompWorker:
         h5_file_list,
         min_diff_llr,
         min_samples,
-        input_type,
         pvalue_method,
     ):
         self.h5_read_groups_key = h5_read_groups_key
         self.min_diff_llr = min_diff_llr
         self.min_samples = min_samples
-        self.input_type = input_type
         self.pvalue_method = pvalue_method
         self.min_pval = np.nextafter(float(0), float(1))
         self.sample_hf_files = {}
-        
+
         if h5_read_groups_key is None:
             for sample_id, h5_file in zip(sample_id_list, h5_file_list):
                 hf = npc.MetcallH5Container(h5_file, "r")
@@ -117,15 +117,12 @@ class MethCompWorker:
         res["neg_med"] = neg_med
         res["pos_med"] = pos_med
         res["ambiguous_med"] = ambiguous_med
-        res["label_list"] = label_list
-        res["med_llr_list"] = med_llr_list
-        res["raw_llr_list"] = raw_llr_list
+        res["label_list"] = list_to_str(label_list)
+        res["med_llr_list"] = list_to_str(med_llr_list)
+        res["raw_llr_list"] = list_to_str(raw_llr_list)
         res["comment"] = comment
-        if self.input_type == "Interval_Aggregate":
-            res["raw_pos_list"] = raw_pos_list
-            res["unique_cpg_pos"] = len(
-                set(itertools.chain.from_iterable(raw_pos_list))
-            )
+        res["raw_pos_list"] = list_to_str(raw_pos_list)
+        res["unique_cpg_pos"] = len(set(itertools.chain.from_iterable(raw_pos_list)))
 
         return res, counters_to_increase
 
@@ -140,9 +137,11 @@ class MethCompWorker:
             )
             llrs = interval_container.get_llrs()
             pos = interval_container.get_ranges()[:, 0]
-            
+
             if self.h5_read_groups_key is not None:
-                read_samples = interval_container.get_read_groups(self.h5_read_groups_key)
+                read_samples = interval_container.get_read_groups(
+                    self.h5_read_groups_key
+                )
                 mask = read_samples == sample_id
                 llrs = llrs[mask]
                 pos = pos[mask]
@@ -153,18 +152,16 @@ class MethCompWorker:
 
 
 def initializer(**args):
-    """
-    Initializes a worker object at the beginning when the multiprocessing pool is created
-    and puts it in the global namespace
-    """
+    """Initializes a worker object at the beginning when the
+    multiprocessing pool is created and puts it in the global
+    namespace."""
     global worker
     worker = MethCompWorker(**args)
 
 
 def worker_function(*args):
-    """
-    Calls the work function of the worker object in the global namespace
-    """
+    """Calls the work function of the worker object in the global
+    namespace."""
     return worker(*args)
 
 
@@ -191,10 +188,14 @@ def Meth_Comp(
     worker_processes: int = 4,
     **kwargs,
 ):
-    """
-    Compare methylation values for each CpG positions or intervals between n samples and perform a statistical test to evaluate if the positions are
-    significantly different. For 2 samples a Mann_Withney test is performed otherwise multiples samples are compared with a Kruskal Wallis test.
-    pValues are adjusted for multiple tests using the Benjamini & Hochberg procedure for controlling the false discovery rate.
+    """Compare methylation values for each CpG positions or intervals
+    between n samples and perform a statistical test to evaluate if the
+    positions are significantly different. For 2 samples a Mann_Withney
+    test is performed otherwise multiples samples are compared with a
+    Kruskal Wallis test. pValues are adjusted for multiple tests using
+    the Benjamini & Hochberg procedure for controlling the false
+    discovery rate.
+
     * h5_file_list
         A list of h5 files containing methylation llr created by nanoepitools
     * read_group_file
@@ -243,7 +244,9 @@ def Meth_Comp(
     read_sample_assignment = None
     if read_group_file is not None:
         read_sample_assignment = read_readgroups_file(read_group_file)
-        read_sample_assignment = read_sample_assignment.loc[read_sample_assignment['group_set'] != -1]
+        read_sample_assignment = read_sample_assignment.loc[
+            read_sample_assignment["group_set"] != -1
+        ]
         read_sample_assignment = read_sample_assignment.to_dict()["group"]
         # Number of read groups minus the "-1" which stands for "unphased"
         sample_id_list = sorted(
@@ -263,14 +266,12 @@ def Meth_Comp(
 
     if interval_bed_fn:
         log.debug("Bed annotation generator")
-        input_type = "CpG_Aggregate"
 
         def intervals_gen_fun():
             return bed_intervals_gen(coordgen=coordgen, interval_bed_fn=interval_bed_fn)
 
     else:
         log.debug("Sliding window generator")
-        input_type = "Interval_Aggregate"
 
         def intervals_gen_fun():
             return sliding_intervals_gen(coordgen=coordgen, interval_size=interval_size)
@@ -306,18 +307,25 @@ def Meth_Comp(
             only_tested_sites=only_tested_sites,
         )
 
-        h5_read_groups_key = "pycometh_rg" # TODO expose parameter
+        h5_read_groups_key = "pycometh_rg"  # TODO expose parameter
         # Ensure every h5file is readable and has an index
         try:
             for h5_file in h5_file_list:
                 hf = npc.MetcallH5Container(h5_file, "a")
                 hf.create_chunk_index(force_update=False)
                 if read_sample_assignment is not None:
-                    hf.annotate_read_groups(h5_read_groups_key, read_sample_assignment, exists_ok=True, overwrite=False)
+                    hf.annotate_read_groups(
+                        h5_read_groups_key,
+                        read_sample_assignment,
+                        exists_ok=True,
+                        overwrite=False,
+                    )
                 hf.close()
         except:
-            raise pycoMethError("Unable to read/write h5 files. Must be writable to create index!")
-        
+            raise pycoMethError(
+                "Unable to read/write h5 files. Must be writable to create index!"
+            )
+
         del read_sample_assignment
 
         log.info("Starting asynchronous file parsing")
@@ -339,7 +347,6 @@ def Meth_Comp(
                     h5_file_list=h5_file_list,
                     min_diff_llr=min_diff_llr,
                     min_samples=min_samples,
-                    input_type="Interval_Aggregate",
                     pvalue_method=pvalue_method,
                 ),
             )
@@ -348,41 +355,44 @@ def Meth_Comp(
             log.debug("Starting deep parsing")
             fp_done = 0
 
-            def callback(*args):
-                stats_results.callback(*(args[0]))
-                pbar.update(1)
+            # Init file writer
+            with Comp_Writer(
+                bed_fn=output_bed_fn, tsv_fn=output_tsv_fn, verbose=verbose,
+            ) as writer:
 
-            abort = False
+                def callback(*args):
+                    result_line = stats_results.callback(*(args[0]))
+                    writer.write(result_line)
+                    pbar.update(1)
 
-            def error_callback(err):
-                print(err)
-                nonlocal abort
-                abort = True
+                abort = False
 
-            async_results = []
-            for interval in intervals_gen:
-                if abort:
-                    raise pycoMethError("Aborting due to error in worker thread")
-                ar = pool.apply_async(
-                    worker_function,
-                    args=[interval],
-                    callback=callback,
-                    error_callback=error_callback,
-                )
-                async_results.append(ar)
+                def error_callback(err):
+                    print(err)
+                    nonlocal abort
+                    abort = True
 
-            for i, ar in enumerate(async_results):
-                if abort:
-                    break
-                ar.wait(timeout=3 * 24 * 3600)
+                async_results = []
+                # TODO perhaps perform this in batches (e.g. submit 10k intervals,
+                #  wait for all to finish, then submit the next 10k, etc...)
+                #  instead of submitting every interval into the queue and then waiting
+                #  for all of them to finish.
+                #  That would allow for a more reasonable timeout.
+                for interval in intervals_gen:
+                    if abort:
+                        raise pycoMethError("Aborting due to error in worker thread")
+                    ar = pool.apply_async(
+                        worker_function,
+                        args=[interval],
+                        callback=callback,
+                        error_callback=error_callback,
+                    )
+                    async_results.append(ar)
 
-        # Init file writter
-        with Comp_Writer(
-            bed_fn=output_bed_fn,
-            tsv_fn=output_tsv_fn,
-            input_type=input_type,
-            verbose=verbose,
-        ) as writer:
+                for i, ar in enumerate(async_results):
+                    if abort:
+                        break
+                    ar.wait(timeout=3 * 24 * 3600)
 
             # Exit condition
             if not stats_results.res_list:
@@ -393,17 +403,14 @@ def Meth_Comp(
                 log.info("Adjust pvalues")
                 stats_results.multitest_adjust()
 
-                # Write output file
-                log.info("Writing output file")
-                for res in tqdm(
-                    stats_results.res_list,
-                    unit=" sites",
-                    unit_scale=True,
-                    desc="\tProgress",
-                    disable=not progress,
-                ):
-                    writer.write(res)
-
+                rewriter = Comp_ReWriter(
+                    [f for f in (output_bed_fn, output_tsv_fn) if f is not None]
+                )
+                rewriter.write_adjusted_pvalues(stats_results.res_list)
+                
+    except:
+        writer.abort()
+        raise
     finally:
         # Print counters
         log_dict(stats_results.counter, log.info, "Results summary")
@@ -447,13 +454,17 @@ class StatsResults:
     # ~~~~~~~~~~~~~~PUBLIC METHODS~~~~~~~~~~~~~~#
 
     def callback(self, res, counters_to_increase):
-        # filter out non tested site is required
+        # filter out non tested site if required
         if self.only_tested_sites and res["pvalue"] is np.nan:
             return
 
         for c in counters_to_increase:
             self.counter[c] += 1
-        self.res_list.append(res)
+
+        reduced_res = {"pvalue": res["pvalue"], "adj_pvalue": res["adj_pvalue"], "comment": res["comment"]}
+        self.res_list.append(reduced_res)
+
+        return res
 
     def multitest_adjust(self):
         """"""
@@ -461,7 +472,7 @@ class StatsResults:
         pvalue_idx = []
         pvalue_list = []
         for i, res in enumerate(self.res_list):
-            if not res["pvalue"] is np.nan:
+            if not np.isnan(res["pvalue"]):
                 pvalue_idx.append(i)
                 pvalue_list.append(res["pvalue"])
 
@@ -494,7 +505,7 @@ class StatsResults:
             else:
                 comment = "Non-significant pvalue"
 
-            # update counters and update comment and adj pavalue
+            # update counters and update comment and adj p-value
             self.counter[comment] += 1
             self.res_list[i]["comment"] = comment
             self.res_list[i]["adj_pvalue"] = adj_pvalue
@@ -502,16 +513,13 @@ class StatsResults:
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~Comp_Writer HELPER CLASS~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 class Comp_Writer:
-    """Extract data for valid sites and write to BED and/or TSV file"""
+    """Extract data for valid sites and write to BED and/or TSV file."""
 
-    def __init__(
-        self, bed_fn=None, tsv_fn=None, input_type="Interval_Aggregate", verbose=True
-    ):
+    def __init__(self, bed_fn=None, tsv_fn=None, verbose=True):
         """"""
         self.log = get_logger(name="Comp_Writer", verbose=verbose)
         self.bed_fn = bed_fn
         self.tsv_fn = tsv_fn
-        self.input_type = input_type
 
         # Init file pointers
         self.bed_fp = self._init_bed() if bed_fn else None
@@ -530,8 +538,10 @@ class Comp_Writer:
         self.colors[2] = "209,70,67"
         self.colors[1] = "230,230,230"
         self.colors[0] = "230,230,230"
+        self.aborted = False
 
     # ~~~~~~~~~~~~~~PUBLIC METHODS~~~~~~~~~~~~~~#
+
     def write(self, res):
         """"""
         if self.bed_fn:
@@ -548,12 +558,18 @@ class Comp_Writer:
         for fp in (self.bed_fp, self.tsv_fp):
             try:
                 fp.close()
+                if self.aborted:
+                    # There was an error - delete the partial file
+                    os.remove(fp.name)
             except:
                 pass
 
+    def abort(self):
+        self.aborted = True
+
     # ~~~~~~~~~~~~~~PRIVATE METHODS~~~~~~~~~~~~~~#
     def _init_bed(self):
-        """Open BED file and write file header"""
+        """Open BED file and write file header."""
         self.log.debug("Initialise output bed file")
         mkbasedir(self.bed_fn, exist_ok=True)
         fp = (
@@ -566,7 +582,7 @@ class Comp_Writer:
         return fp
 
     def _write_bed(self, res):
-        """Write line to BED file"""
+        """Write line to BED file."""
         # Log transform pvalue and cast to int
         if res["adj_pvalue"] is np.nan:
             score = 0
@@ -589,7 +605,7 @@ class Comp_Writer:
         self.bed_fp.write(str_join(res_line, sep="\t", line_end="\n"))
 
     def _init_tsv(self):
-        """Open TSV file and write file header"""
+        """Open TSV file and write file header."""
         self.log.debug("Initialise output tsv file")
         mkbasedir(self.tsv_fn, exist_ok=True)
         fp = (
@@ -598,87 +614,93 @@ class Comp_Writer:
             else open(self.tsv_fn, "w")
         )
         # Write header line
-        if self.input_type == "Interval_Aggregate":
-            header = [
-                "chromosome",
-                "start",
-                "end",
-                "n_samples",
-                "pvalue",
-                "adj_pvalue",
-                "neg_med",
-                "pos_med",
-                "ambiguous_med",
-                "unique_cpg_pos",
-                "labels",
-                "med_llr_list",
-                "raw_llr_list",
-                "raw_pos_list",
-                "comment",
-            ]
-        elif self.input_type == "CpG_Aggregate":
-            header = [
-                "chromosome",
-                "start",
-                "end",
-                "n_samples",
-                "pvalue",
-                "adj_pvalue",
-                "neg_med",
-                "pos_med",
-                "ambiguous_med",
-                "labels",
-                "med_llr_list",
-                "raw_llr_list",
-                "comment",
-            ]
+
+        header = [
+            "chromosome",
+            "start",
+            "end",
+            "n_samples",
+            "pvalue",
+            "adj_pvalue",
+            "neg_med",
+            "pos_med",
+            "ambiguous_med",
+            "unique_cpg_pos",
+            "labels",
+            "med_llr_list",
+            "raw_llr_list",
+            "raw_pos_list",
+            "comment",
+        ]
         fp.write(str_join(header, sep="\t", line_end="\n"))
         return fp
 
     def _write_tsv(self, res):
-        """Write line to TSV file"""
+        """Write line to TSV file."""
 
-        if self.input_type == "Interval_Aggregate":
-            res_line = [
-                res["chromosome"],
-                res["start"],
-                res["end"],
-                res["n_samples"],
-                res["pvalue"],
-                res["adj_pvalue"],
-                res["neg_med"],
-                res["pos_med"],
-                res["ambiguous_med"],
-                res["unique_cpg_pos"],
-                list_to_str(res["label_list"]),
-                list_to_str(res["med_llr_list"]),
-                list_to_str(res["raw_llr_list"]),
-                list_to_str(res["raw_pos_list"]),
-                res["comment"],
-            ]
-        elif self.input_type == "CpG_Aggregate":
-            res_line = [
-                res["chromosome"],
-                res["start"],
-                res["end"],
-                res["n_samples"],
-                res["pvalue"],
-                res["adj_pvalue"],
-                res["neg_med"],
-                res["pos_med"],
-                res["ambiguous_med"],
-                list_to_str(res["label_list"]),
-                list_to_str(res["med_llr_list"]),
-                list_to_str(res["raw_llr_list"]),
-                res["comment"],
-            ]
+        res_line = [
+            res["chromosome"],
+            res["start"],
+            res["end"],
+            res["n_samples"],
+            res["pvalue"],
+            res["adj_pvalue"],
+            res["neg_med"],
+            res["pos_med"],
+            res["ambiguous_med"],
+            res["unique_cpg_pos"],
+            res["label_list"],
+            res["med_llr_list"],
+            res["raw_llr_list"],
+            res["raw_pos_list"],
+            res["comment"],
+        ]
         self.tsv_fp.write(str_join(res_line, sep="\t", line_end="\n"))
 
 
-def read_readgroups_file(readgroups_file: IO):
+class Comp_ReWriter:
+    """Reads delimited files with a header line, and rewrites the file
+    in-place using python 3's fileinput module.
+
+    This way we don't have to hold the entire file in memory or copy it
+    around.
     """
-    Reads file that assigns read to read groups (such as haplotypes,
+
+    def __init__(self, filenames: List[str], separators: List[str] = None):
+        """
+        :param filenames: The list of filenames to modify
+        :param separators: The separators for each file. Can be None (default), in
+                           which case tab is assumed. If provided, it must be the same
+                           length as filenames
+        """
+
+        self.filenames = filenames
+        if separators is None:
+            self.separators = ["\t"] * len(self.filenames)
+        else:
+            assert len(separators) == len(self.filenames)
+            self.separators = separators
+
+    def write_adjusted_pvalues(self, res_list):
+        for sep, filename in zip(self.separators, self.filenames):
+            if filename is not None:
+                with fileinput.input(filename, inplace=True) as fi_fp:
+                    for res, line in zip((None, *res_list), fi_fp):
+                        line = line.strip()
+                        if res is None:
+                            header = {k: i for i, k in enumerate(line.split(sep))}
+                            print(line)
+                        else:
+                            updated_line = line.split(sep)
+                            updated_line[header["adj_pvalue"]] = str(res["adj_pvalue"])
+                            updated_line[header["comment"]] = res["comment"]
+                            print(sep.join(updated_line))
+
+
+def read_readgroups_file(readgroups_file: IO):
+    """Reads file that assigns read to read groups (such as haplotypes,
     samples, clusters, etc)
+
     :param readgroups_file: path to the tab-separated file
     :return: pandas dataframe with columns "read_name", "group" and "group_set"
     """
@@ -719,9 +741,8 @@ def read_readgroups_file(readgroups_file: IO):
 
 
 def sliding_intervals_gen(coordgen, interval_size=1000) -> Generator[Coord, None, None]:
-    """
-    Generate sliding window coordinate intervals over the entire reference genome provided
-    """
+    """Generate sliding window coordinate intervals over the entire
+    reference genome provided."""
     for chr_name, chr_len in coordgen.chr_name_len.items():
         for start in range(0, chr_len, interval_size):
             end = start + interval_size if start + interval_size <= chr_len else chr_len
@@ -729,9 +750,8 @@ def sliding_intervals_gen(coordgen, interval_size=1000) -> Generator[Coord, None
 
 
 def bed_intervals_gen(coordgen, interval_bed_fn) -> Generator[Coord, None, None]:
-    """
-    Generate coordinate intervals corresponding to the provided bed file
-    """
+    """Generate coordinate intervals corresponding to the provided bed
+    file."""
     with FileParser(
         fn=interval_bed_fn,
         colnames=["chrom", "start", "end"],
