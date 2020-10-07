@@ -67,6 +67,7 @@ def main(args=None):
     arg_from_docstr(sp_met_io, f, "output_bed_fn", "b")
     arg_from_docstr(sp_met_io, f, "output_tsv_fn", "t")
     arg_from_docstr(sp_met_io, f, "interval_size", "n")
+    arg_from_docstr(sp_met_io, f, "min_num_reads_per_interval", "c")
     sp_met_ms = sp_met.add_argument_group("Misc options")
     arg_from_docstr(sp_met_ms, f, "max_missing", "m")
     arg_from_docstr(sp_met_ms, f, "worker_processes", "w")
@@ -75,7 +76,7 @@ def main(args=None):
     arg_from_docstr(sp_met_ms, f, "pvalue_adj_method")
     arg_from_docstr(sp_met_ms, f, "pvalue_threshold")
     arg_from_docstr(sp_met_ms, f, "only_tested_sites")
-
+    
     # Comp_Report subparser
     f = Comp_Report
     sp_cr = subparsers.add_parser("Comp_Report", description=doc_func(f))

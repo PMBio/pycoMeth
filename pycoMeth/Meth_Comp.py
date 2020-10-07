@@ -32,12 +32,14 @@ class MethCompWorker:
         min_diff_llr,
         min_samples,
         pvalue_method,
+        min_num_reads_per_interval,
     ):
         self.h5_read_groups_key = h5_read_groups_key
         self.min_diff_llr = min_diff_llr
         self.min_samples = min_samples
         self.pvalue_method = pvalue_method
         self.min_pval = np.nextafter(float(0), float(1))
+        self.min_num_reads_per_interval = min_num_reads_per_interval
         self.sample_hf_files = {}
 
         if h5_read_groups_key is None:
@@ -56,7 +58,7 @@ class MethCompWorker:
             except:
                 pass
 
-    def compute_pvalue(self, interval, sample_llrs, sample_pos):
+    def compute_pvalue(self, interval, sample_llrs, sample_pos, sample_reads):
         """"""
 
         label_list = list([k for k in sample_llrs.keys() if len(sample_llrs[k]) > 0])
@@ -64,6 +66,8 @@ class MethCompWorker:
         raw_pos_list = [sample_pos[k] for k in label_list]
 
         n_samples = sum(1 for llrs in raw_llr_list if len(llrs) > 0)
+        
+        n_reads = [len(sample_reads[k]) for k in label_list]
 
         # Collect median llr
         med_llr_list = [np.median(llrs) for llrs in raw_llr_list]
@@ -77,9 +81,13 @@ class MethCompWorker:
 
         counters_to_increase = []
 
-        # Not enough samples
         if n_samples < self.min_samples:
+            # Not enough samples
             comment = "Insufficient samples"
+            pvalue = np.nan
+        elif np.min(n_reads) < self.min_num_reads_per_interval:
+            # Not enough reads in one of the samples
+            comment = "Insufficient coverage"
             pvalue = np.nan
         # Sufficient samples and effect size
         elif not neg_med or not pos_med:
@@ -129,6 +137,7 @@ class MethCompWorker:
     def __call__(self, interval):
         sample_llrs = {}
         sample_pos = {}
+        sample_reads = {}
 
         for sample_id, hf in self.sample_hf_files.items():
             chrom_container = hf[interval.chr_name]
@@ -142,13 +151,16 @@ class MethCompWorker:
                 read_samples = interval_container.get_read_groups(
                     self.h5_read_groups_key
                 )
+                read_names = interval_container.get_read_names()
                 mask = read_samples == sample_id
                 llrs = llrs[mask]
                 pos = pos[mask]
+                read_names = read_names[mask]
             sample_llrs[sample_id] = llrs.tolist()
             sample_pos[sample_id] = pos.tolist()
+            sample_reads[sample_id] = read_names
 
-        return self.compute_pvalue(interval, sample_llrs, sample_pos)
+        return self.compute_pvalue(interval, sample_llrs, sample_pos, sample_reads)
 
 
 def initializer(**args):
@@ -176,6 +188,7 @@ def Meth_Comp(
     output_bed_fn: str = None,
     output_tsv_fn: str = None,
     interval_size: int = 1000,
+    min_num_reads_per_interval: int = 10,
     max_missing: int = 0,
     min_diff_llr: float = 2,
     sample_id_list: [str] = None,
@@ -186,6 +199,7 @@ def Meth_Comp(
     quiet: bool = False,
     progress: bool = False,
     worker_processes: int = 4,
+    
     **kwargs,
 ):
     """Compare methylation values for each CpG positions or intervals
@@ -206,6 +220,9 @@ def Meth_Comp(
         SORTED bed file containing **non-overlapping** intervals to bin CpG data into (Optional) (can be gzipped)
     * interval_size
         Size of the sliding window in which to aggregate CpG sites data from if no BED file is provided
+   * min_num_reads_per_interval
+        Minimum number of reads per sample per interval. The entire interval will be discarded if one sample
+        does not have sufficient coverage.
     * output_bed_fn
         Path to write a summary result file in BED format (At least 1 output file is required) (can be gzipped)
     * output_tsv_fn
@@ -348,6 +365,7 @@ def Meth_Comp(
                     min_diff_llr=min_diff_llr,
                     min_samples=min_samples,
                     pvalue_method=pvalue_method,
+                    min_num_reads_per_interval=min_num_reads_per_interval,
                 ),
             )
 
@@ -368,7 +386,7 @@ def Meth_Comp(
                 abort = False
 
                 def error_callback(err):
-                    print(err)
+                    print("ERROR IN WORKER THREAD: ", err)
                     nonlocal abort
                     abort = True
 
@@ -407,9 +425,11 @@ def Meth_Comp(
                     [f for f in (output_bed_fn, output_tsv_fn) if f is not None]
                 )
                 rewriter.write_adjusted_pvalues(stats_results.res_list)
-                
+
     except:
         writer.abort()
+        #pool.terminate()
+        #pool.join()
         raise
     finally:
         # Print counters
@@ -461,7 +481,11 @@ class StatsResults:
         for c in counters_to_increase:
             self.counter[c] += 1
 
-        reduced_res = {"pvalue": res["pvalue"], "adj_pvalue": res["adj_pvalue"], "comment": res["comment"]}
+        reduced_res = {
+            "pvalue": res["pvalue"],
+            "adj_pvalue": res["adj_pvalue"],
+            "comment": res["comment"],
+        }
         self.res_list.append(reduced_res)
 
         return res
