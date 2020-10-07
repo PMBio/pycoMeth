@@ -386,7 +386,7 @@ def Meth_Comp(
                 abort = False
 
                 def error_callback(err):
-                    print("ERROR IN WORKER THREAD: ", err)
+                    log.critical("Error in worker thread")
                     nonlocal abort
                     abort = True
 
