@@ -400,11 +400,7 @@ def Meth_Comp(
                 #  instead of submitting every interval into the queue and then waiting
                 #  for all of them to finish.
                 #  That would allow for a more reasonable timeout.
-                testi = 0
                 for interval in intervals_gen:
-                    if testi>1000:
-                        break
-                    testi +=1
                     if abort:
                         raise pycoMethError("Aborting due to error in worker thread")
                     ar = pool.apply_async(
