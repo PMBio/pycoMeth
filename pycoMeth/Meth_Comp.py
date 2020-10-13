@@ -3,7 +3,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Standard library imports
 import itertools
-from typing import IO, List
+from typing import IO, List, Generator
 import fileinput
 
 # Third party imports
@@ -143,14 +143,19 @@ class MethCompWorker:
             interval_container = chrom_container.get_values_in_range(
                 interval.start, interval.end
             )
-            llrs = interval_container.get_llrs()
+            
+            if interval_container is None:
+                continue
+                
+            llrs = interval_container.get_llrs()[:]
             pos = interval_container.get_ranges()[:, 0]
+            read_names = interval_container.get_read_names()[:]
 
             if self.h5_read_groups_key is not None:
                 read_samples = interval_container.get_read_groups(
                     self.h5_read_groups_key
                 )
-                read_names = interval_container.get_read_names()
+                
                 mask = read_samples == sample_id
                 llrs = llrs[mask]
                 pos = pos[mask]
@@ -181,7 +186,7 @@ def worker_function(*args):
 
 def Meth_Comp(
     h5_file_list: [str],
-    ref_fasta_fn: str = None,
+    ref_fasta_fn: str,
     read_group_file: str = None,
     interval_bed_fn: str = None,
     output_bed_fn: str = None,
@@ -322,7 +327,7 @@ def Meth_Comp(
             only_tested_sites=only_tested_sites,
         )
 
-        h5_read_groups_key = "pycometh_rg"  # TODO expose parameter
+        h5_read_groups_key = "pycometh_rg" if  read_group_file is not None else None# TODO expose parameter
         # Ensure every h5file is readable and has an index
         try:
             for h5_file in h5_file_list:
@@ -352,7 +357,7 @@ def Meth_Comp(
             disable=not progress,
         ) as pbar:
 
-            print("Launching %d worker processes" % worker_processes)
+            log.info("Launching %d worker processes" % worker_processes)
 
             pool = Pool(
                 worker_processes,
@@ -384,7 +389,8 @@ def Meth_Comp(
                 abort = False
 
                 def error_callback(err):
-                    log.critical("Error in worker thread")
+                    log.critical("Error in worker thread ")
+                    log.critical(str(err))
                     nonlocal abort
                     abort = True
 
@@ -394,7 +400,11 @@ def Meth_Comp(
                 #  instead of submitting every interval into the queue and then waiting
                 #  for all of them to finish.
                 #  That would allow for a more reasonable timeout.
+                testi = 0
                 for interval in intervals_gen:
+                    if testi>1000:
+                        break
+                    testi +=1
                     if abort:
                         raise pycoMethError("Aborting due to error in worker thread")
                     ar = pool.apply_async(
@@ -604,7 +614,7 @@ class Comp_Writer:
     def _write_bed(self, res):
         """Write line to BED file."""
         # Log transform pvalue and cast to int
-        if res["adj_pvalue"] is np.nan:
+        if np.isnan(res["adj_pvalue"]):
             score = 0
         else:
             score = int(-np.log10(res["adj_pvalue"]))
