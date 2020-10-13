@@ -3,7 +3,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Standard library imports
 import itertools
-from typing import IO, List, Generator
+from typing import IO, List
 import fileinput
 
 # Third party imports
@@ -13,14 +13,14 @@ import pandas as pd
 from scipy.stats import kruskal, mannwhitneyu
 from statsmodels.stats.multitest import multipletests
 from multiprocessing import Pool
+from meth5 import Meth5File
 
 # Local imports
 from pycoMeth.common import *
 from pycoMeth.FileParser import FileParser
 from pycoMeth.CoordGen import CoordGen, Coord
-import nanoepitools.nanopolish_container as npc
 
-# ~~~~~~~~~~~~~~~~~~~~~~~~~ Worker methods ~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# ~~~~~~~~~~~~~~~~~ Multiprocessing Worker methods ~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 
 class MethCompWorker:
@@ -44,10 +44,10 @@ class MethCompWorker:
 
         if h5_read_groups_key is None:
             for sample_id, h5_file in zip(sample_id_list, h5_file_list):
-                hf = npc.MetcallH5Container(h5_file, "r")
+                hf = Meth5File(h5_file, "r")
                 self.sample_hf_files[sample_id] = hf
         else:
-            hf = npc.MetcallH5Container(h5_file_list[0], "r")
+            hf = Meth5File(h5_file_list[0], "r")
             for sample_id in sample_id_list:
                 self.sample_hf_files[sample_id] = hf
 
@@ -59,7 +59,6 @@ class MethCompWorker:
                 pass
 
     def compute_pvalue(self, interval, sample_llrs, sample_pos, sample_reads):
-        """"""
 
         label_list = list([k for k in sample_llrs.keys() if len(sample_llrs[k]) > 0])
         raw_llr_list = [sample_llrs[k] for k in label_list]
@@ -211,7 +210,7 @@ def Meth_Comp(
     discovery rate.
 
     * h5_file_list
-        A list of h5 files containing methylation llr created by nanoepitools
+        A list of MetH5 files containing methylation llr
     * read_group_file
         Tab-delimited file assigning reads to read groups (e.g. samples or haplotypes). (optional)
     * ref_fasta_fn
@@ -257,7 +256,6 @@ def Meth_Comp(
         raise pycoMethError("At least 1 output file is requires (-t or -b)")
 
     # Automatically define tests and maximal missing samples depending on number of files to compare
-
     read_sample_assignment = None
     if read_group_file is not None:
         read_sample_assignment = read_readgroups_file(read_group_file)
@@ -328,7 +326,7 @@ def Meth_Comp(
         # Ensure every h5file is readable and has an index
         try:
             for h5_file in h5_file_list:
-                hf = npc.MetcallH5Container(h5_file, "a")
+                hf = Meth5File(h5_file, "a")
                 hf.create_chunk_index(force_update=False)
                 if read_sample_assignment is not None:
                     hf.annotate_read_groups(
@@ -428,8 +426,6 @@ def Meth_Comp(
 
     except:
         writer.abort()
-        #pool.terminate()
-        #pool.join()
         raise
     finally:
         # Print counters
