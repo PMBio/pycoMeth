@@ -13,7 +13,7 @@ import pandas as pd
 from scipy.stats import kruskal, mannwhitneyu
 from statsmodels.stats.multitest import multipletests
 from multiprocessing import Pool
-from meth5 import Meth5File
+from meth5.meth5_wrapper import MetH5File
 
 # Local imports
 from pycoMeth.common import *
@@ -44,10 +44,10 @@ class MethCompWorker:
 
         if h5_read_groups_key is None:
             for sample_id, h5_file in zip(sample_id_list, h5_file_list):
-                hf = Meth5File(h5_file, "r")
+                hf = MetH5File(h5_file, "r")
                 self.sample_hf_files[sample_id] = hf
         else:
-            hf = Meth5File(h5_file_list[0], "r")
+            hf = MetH5File(h5_file_list[0], "r")
             for sample_id in sample_id_list:
                 self.sample_hf_files[sample_id] = hf
 
@@ -326,7 +326,7 @@ def Meth_Comp(
         # Ensure every h5file is readable and has an index
         try:
             for h5_file in h5_file_list:
-                hf = Meth5File(h5_file, "a")
+                hf = MetH5File(h5_file, "a")
                 hf.create_chunk_index(force_update=False)
                 if read_sample_assignment is not None:
                     hf.annotate_read_groups(
