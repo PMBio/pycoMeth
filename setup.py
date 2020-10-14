@@ -21,7 +21,7 @@ setup(
     author = 'Adrien Leger',
     author_email = 'aleg@ebi.ac.uk',
     license= "GPL",
-    python_requires ='>=3.6',
+    python_requires ='>=3.7',
     classifiers = [
         'Development Status :: 3 - Alpha',
         'Intended Audience :: Science/Research',
