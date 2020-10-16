@@ -3,7 +3,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Standard library imports
 import itertools
-from typing import IO, List, Generator
+from typing import IO, List, Generator, Dict
 import fileinput
 
 # Third party imports
@@ -40,7 +40,7 @@ class MethCompWorker:
         self.pvalue_method = pvalue_method
         self.min_pval = np.nextafter(float(0), float(1))
         self.min_num_reads_per_interval = min_num_reads_per_interval
-        self.sample_hf_files = {}
+        self.sample_hf_files: Dict[str, MetH5File] = {}
 
         if h5_read_groups_key is None:
             for sample_id, h5_file in zip(sample_id_list, h5_file_list):
@@ -65,7 +65,7 @@ class MethCompWorker:
         raw_pos_list = [sample_pos[k] for k in label_list]
 
         n_samples = sum(1 for llrs in raw_llr_list if len(llrs) > 0)
-        
+
         n_reads = [len(sample_reads[k]) for k in label_list]
 
         # Collect median llr
@@ -74,9 +74,7 @@ class MethCompWorker:
         # Evaluate median llr value
         neg_med = sum(med <= -self.min_diff_llr for med in med_llr_list)
         pos_med = sum(med >= self.min_diff_llr for med in med_llr_list)
-        ambiguous_med = sum(
-            -self.min_diff_llr <= med <= self.min_diff_llr for med in med_llr_list
-        )
+        ambiguous_med = sum(-self.min_diff_llr <= med <= self.min_diff_llr for med in med_llr_list)
 
         counters_to_increase = []
 
@@ -140,22 +138,18 @@ class MethCompWorker:
 
         for sample_id, hf in self.sample_hf_files.items():
             chrom_container = hf[interval.chr_name]
-            interval_container = chrom_container.get_values_in_range(
-                interval.start, interval.end
-            )
-            
+            interval_container = chrom_container.get_values_in_range(interval.start, interval.end)
+
             if interval_container is None:
                 continue
-                
+
             llrs = interval_container.get_llrs()[:]
             pos = interval_container.get_ranges()[:, 0]
             read_names = interval_container.get_read_names()[:]
 
             if self.h5_read_groups_key is not None:
-                read_samples = interval_container.get_read_groups(
-                    self.h5_read_groups_key
-                )
-                
+                read_samples = interval_container.get_read_groups(self.h5_read_groups_key)
+
                 mask = read_samples == sample_id
                 llrs = llrs[mask]
                 pos = pos[mask]
@@ -203,7 +197,6 @@ def Meth_Comp(
     quiet: bool = False,
     progress: bool = False,
     worker_processes: int = 4,
-    
     **kwargs,
 ):
     """Compare methylation values for each CpG positions or intervals
@@ -214,38 +207,38 @@ def Meth_Comp(
     the Benjamini & Hochberg procedure for controlling the false
     discovery rate.
 
-    * h5_file_list
-        A list of MetH5 files containing methylation llr
-    * read_group_file
-        Tab-delimited file assigning reads to read groups (e.g. samples or haplotypes). (optional)
-    * ref_fasta_fn
-        Reference file used for alignment in Fasta format (ideally already indexed with samtools faidx)
-    * interval_bed_fn
-        SORTED bed file containing **non-overlapping** intervals to bin CpG data into (Optional) (can be gzipped)
-    * interval_size
-        Size of the sliding window in which to aggregate CpG sites data from if no BED file is provided
-   * min_num_reads_per_interval
-        Minimum number of reads per sample per interval. The entire interval will be discarded if one sample
-        does not have sufficient coverage.
-    * output_bed_fn
-        Path to write a summary result file in BED format (At least 1 output file is required) (can be gzipped)
-    * output_tsv_fn
-        Path to write an more extensive result report in TSV format (At least 1 output file is required) (can be gzipped)
-    * max_missing
-        Max number of missing samples to perform the test
-    * min_diff_llr
-        Minimal llr boundary for negative and positive median llr.
-        The test if only performed if at least one sample has a median llr above (methylated) and 1 sample has a median llr below (unmethylated)
-    * sample_id_list
-        list of sample ids to annotate results in tsv file
-    * pvalue_adj_method
-        Method to use for pValue multiple test adjustment
-    * pvalue_threshold
-        Alpha parameter (family-wise error rate) for pValue adjustment
-    * only_tested_sites
-        Do not include sites that were not tested because of insufficient samples or effect size in the report
-    * worker_processes
-        Number of processes to be launched
+     * h5_file_list
+         A list of MetH5 files containing methylation llr
+     * read_group_file
+         Tab-delimited file assigning reads to read groups (e.g. samples or haplotypes). (optional)
+     * ref_fasta_fn
+         Reference file used for alignment in Fasta format (ideally already indexed with samtools faidx)
+     * interval_bed_fn
+         SORTED bed file containing **non-overlapping** intervals to bin CpG data into (Optional) (can be gzipped)
+     * interval_size
+         Size of the sliding window in which to aggregate CpG sites data from if no BED file is provided
+    * min_num_reads_per_interval
+         Minimum number of reads per sample per interval. The entire interval will be discarded if one sample
+         does not have sufficient coverage.
+     * output_bed_fn
+         Path to write a summary result file in BED format (At least 1 output file is required) (can be gzipped)
+     * output_tsv_fn
+         Path to write an more extensive result report in TSV format (At least 1 output file is required) (can be gzipped)
+     * max_missing
+         Max number of missing samples to perform the test
+     * min_diff_llr
+         Minimal llr boundary for negative and positive median llr.
+         The test if only performed if at least one sample has a median llr above (methylated) and 1 sample has a median llr below (unmethylated)
+     * sample_id_list
+         list of sample ids to annotate results in tsv file
+     * pvalue_adj_method
+         Method to use for pValue multiple test adjustment
+     * pvalue_threshold
+         Alpha parameter (family-wise error rate) for pValue adjustment
+     * only_tested_sites
+         Do not include sites that were not tested because of insufficient samples or effect size in the report
+     * worker_processes
+         Number of processes to be launched
     """
     # Init method
     opt_summary_dict = opt_summary(local_opt=locals())
@@ -264,14 +257,10 @@ def Meth_Comp(
     read_sample_assignment = None
     if read_group_file is not None:
         read_sample_assignment = read_readgroups_file(read_group_file)
-        read_sample_assignment = read_sample_assignment.loc[
-            read_sample_assignment["group_set"] != -1
-        ]
+        read_sample_assignment = read_sample_assignment.loc[read_sample_assignment["group_set"] != -1]
         read_sample_assignment = read_sample_assignment.to_dict()["group"]
         # Number of read groups minus the "-1" which stands for "unphased"
-        sample_id_list = sorted(
-            list(set(read_sample_assignment.values()).difference({-1}))
-        )
+        sample_id_list = sorted(list(set(read_sample_assignment.values()).difference({-1})))
     else:
 
         if not sample_id_list:
@@ -322,12 +311,10 @@ def Meth_Comp(
     try:
         # Define StatsResults to collect valid sites and perform stats
         stats_results = StatsResults(
-            pvalue_adj_method=pvalue_adj_method,
-            pvalue_threshold=pvalue_threshold,
-            only_tested_sites=only_tested_sites,
+            pvalue_adj_method=pvalue_adj_method, pvalue_threshold=pvalue_threshold, only_tested_sites=only_tested_sites,
         )
 
-        h5_read_groups_key = "pycometh_rg" if  read_group_file is not None else None# TODO expose parameter
+        h5_read_groups_key = "pycometh_rg" if read_group_file is not None else None  # TODO expose parameter
         # Ensure every h5file is readable and has an index
         try:
             for h5_file in h5_file_list:
@@ -335,26 +322,17 @@ def Meth_Comp(
                 hf.create_chunk_index(force_update=False)
                 if read_sample_assignment is not None:
                     hf.annotate_read_groups(
-                        h5_read_groups_key,
-                        read_sample_assignment,
-                        exists_ok=True,
-                        overwrite=False,
+                        h5_read_groups_key, read_sample_assignment, exists_ok=True, overwrite=False,
                     )
                 hf.close()
         except:
-            raise pycoMethError(
-                "Unable to read/write h5 files. Must be writable to create index!"
-            )
+            raise pycoMethError("Unable to read/write h5 files. Must be writable to create index!")
 
         del read_sample_assignment
 
         log.info("Starting asynchronous file parsing")
         with tqdm(
-            total=num_intervals,
-            unit=" intervals",
-            unit_scale=True,
-            desc="\tProgress",
-            disable=not progress,
+            total=num_intervals, unit=" intervals", unit_scale=True, desc="\tProgress", disable=not progress,
         ) as pbar:
 
             log.info("Launching %d worker processes" % worker_processes)
@@ -377,9 +355,7 @@ def Meth_Comp(
             fp_done = 0
 
             # Init file writer
-            with Comp_Writer(
-                bed_fn=output_bed_fn, tsv_fn=output_tsv_fn, verbose=verbose,
-            ) as writer:
+            with Comp_Writer(bed_fn=output_bed_fn, tsv_fn=output_tsv_fn, verbose=verbose,) as writer:
 
                 def callback(*args):
                     result_line = stats_results.callback(*(args[0]))
@@ -404,10 +380,7 @@ def Meth_Comp(
                     if abort:
                         raise pycoMethError("Aborting due to error in worker thread")
                     ar = pool.apply_async(
-                        worker_function,
-                        args=[interval],
-                        callback=callback,
-                        error_callback=error_callback,
+                        worker_function, args=[interval], callback=callback, error_callback=error_callback,
                     )
                     async_results.append(ar)
 
@@ -425,9 +398,7 @@ def Meth_Comp(
                 log.info("Adjust pvalues")
                 stats_results.multitest_adjust()
 
-                rewriter = Comp_ReWriter(
-                    [f for f in (output_bed_fn, output_tsv_fn) if f is not None]
-                )
+                rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
                 rewriter.write_adjusted_pvalues(stats_results.res_list)
 
     except:
@@ -443,10 +414,7 @@ def Meth_Comp(
 
 class StatsResults:
     def __init__(
-        self,
-        pvalue_adj_method="fdr_bh",
-        pvalue_threshold=0.01,
-        only_tested_sites=False,
+        self, pvalue_adj_method="fdr_bh", pvalue_threshold=0.01, only_tested_sites=False,
     ):
         """"""
         # Save self variables
@@ -503,22 +471,15 @@ class StatsResults:
                 pvalue_list.append(res["pvalue"])
 
         # Adjust values
-        adj_pvalue_list = multipletests(
-            pvals=pvalue_list,
-            alpha=self.pvalue_threshold,
-            method=self.pvalue_adj_method,
-        )[1]
+        adj_pvalue_list = multipletests(pvals=pvalue_list, alpha=self.pvalue_threshold, method=self.pvalue_adj_method,)[
+            1
+        ]
 
         # add adjusted values to appropriate category
         for i, adj_pvalue in zip(pvalue_idx, adj_pvalue_list):
 
             # Fix and categorize p-values
-            if (
-                adj_pvalue is np.nan
-                or adj_pvalue is None
-                or adj_pvalue > 1
-                or adj_pvalue < 0
-            ):
+            if adj_pvalue is np.nan or adj_pvalue is None or adj_pvalue > 1 or adj_pvalue < 0:
                 adj_pvalue = 1.0
                 comment = "Non-significant pvalue"
 
@@ -598,11 +559,7 @@ class Comp_Writer:
         """Open BED file and write file header."""
         self.log.debug("Initialise output bed file")
         mkbasedir(self.bed_fn, exist_ok=True)
-        fp = (
-            gzip.open(self.bed_fn, "wt")
-            if self.bed_fn.endswith(".gz")
-            else open(self.bed_fn, "w")
-        )
+        fp = gzip.open(self.bed_fn, "wt") if self.bed_fn.endswith(".gz") else open(self.bed_fn, "w")
         # Write header line
         fp.write("track name=meth_comp itemRgb=On\n")
         return fp
@@ -634,11 +591,7 @@ class Comp_Writer:
         """Open TSV file and write file header."""
         self.log.debug("Initialise output tsv file")
         mkbasedir(self.tsv_fn, exist_ok=True)
-        fp = (
-            gzip.open(self.tsv_fn, "wt")
-            if self.tsv_fn.endswith(".gz")
-            else open(self.tsv_fn, "w")
-        )
+        fp = gzip.open(self.tsv_fn, "wt") if self.tsv_fn.endswith(".gz") else open(self.tsv_fn, "w")
         # Write header line
 
         header = [
@@ -733,10 +686,7 @@ def read_readgroups_file(readgroups_file: IO):
     # Loading
     try:
         read_groups = pd.read_csv(
-            readgroups_file,
-            sep="\t",
-            header=0,
-            dtype={"read_name": str, "group": int, "group_set": "category"},
+            readgroups_file, sep="\t", header=0, dtype={"read_name": str, "group": int, "group_set": "category"},
         )
     except Exception as e:
         raise pycoMethError("Unable to read read groups file", e)
@@ -747,15 +697,10 @@ def read_readgroups_file(readgroups_file: IO):
     elif len(read_groups.columns) == 3:
         should_colnames = ["read_name", "group", "group_set"]
     else:
-        raise pycoMethError(
-            "Invalid number of columns in read groups file (should be 2 or 3)"
-        )
+        raise pycoMethError("Invalid number of columns in read groups file (should be 2 or 3)")
 
     if not all([col in read_groups.columns for col in should_colnames]):
-        raise pycoMethError(
-            "Invalid column names in read groups file (should be %s)"
-            % should_colnames.join(", ")
-        )
+        raise pycoMethError("Invalid column names in read groups file (should be %s)" % should_colnames.join(", "))
 
     # Finished validation, now add group_set column if not present
     if "group_set" not in read_groups.columns:

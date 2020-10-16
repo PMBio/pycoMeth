@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-#~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~#
+# ~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~#
 # Standard library imports
 import argparse
 import sys
@@ -15,14 +15,14 @@ from pycoMeth.Meth_Comp import Meth_Comp
 from pycoMeth.CGI_Finder import CGI_Finder
 from pycoMeth.Comp_Report import Comp_Report
 
-#~~~~~~~~~~~~~~TOP LEVEL ENTRY POINT~~~~~~~~~~~~~~#
+# ~~~~~~~~~~~~~~TOP LEVEL ENTRY POINT~~~~~~~~~~~~~~#
 def main(args=None):
     """ Main entry point for pycoMeth command line interface"""
 
     # Parser and subparsers for command
-    parser = argparse.ArgumentParser (description=pkg.__description__)
+    parser = argparse.ArgumentParser(description=pkg.__description__)
     parser.add_argument("--version", action="version", version="{} v{}".format(pkg.__name__, pkg.__version__))
-    subparsers = parser.add_subparsers (description="%(prog)s implements the following subcommands", dest="subcommands")
+    subparsers = parser.add_subparsers(description="%(prog)s implements the following subcommands", dest="subcommands")
     subparsers.required = True
 
     # CpG_Aggregate subparser
@@ -76,7 +76,7 @@ def main(args=None):
     arg_from_docstr(sp_met_ms, f, "pvalue_adj_method")
     arg_from_docstr(sp_met_ms, f, "pvalue_threshold")
     arg_from_docstr(sp_met_ms, f, "only_tested_sites")
-    
+
     # Comp_Report subparser
     f = Comp_Report
     sp_cr = subparsers.add_parser("Comp_Report", description=doc_func(f))
@@ -122,5 +122,5 @@ def main(args=None):
     args.func(**vars(args))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
