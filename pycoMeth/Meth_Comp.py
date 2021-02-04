@@ -41,6 +41,8 @@ class MethCompWorker:
         self.min_pval = np.nextafter(float(0), float(1))
         self.min_num_reads_per_interval = min_num_reads_per_interval
         self.sample_hf_files: Dict[str, MetH5File] = {}
+        self.min_diff_bs = 0.25  # TODO expose parameters
+        self.filter_non_overlapping_sites = False # TODO expose parameters
 
         if h5_read_groups_key is None:
             for sample_id, h5_file in zip(sample_id_list, h5_file_list):
@@ -64,7 +66,31 @@ class MethCompWorker:
         raw_llr_list = [sample_llrs[k] for k in label_list]
         raw_pos_list = [sample_pos[k] for k in label_list]
 
-        n_samples = sum(1 for llrs in raw_llr_list if len(llrs) > 0)
+        if len(raw_pos_list) > 1 and self.filter_non_overlapping_sites:
+            def create_pos_intersection(left: set, it):
+                try:
+                    ret = left.intersection(set(next(it)))
+                    ret = create_pos_intersection(ret, it)
+                    return ret
+                except StopIteration:
+                    return left
+            
+            pos_intersection = create_pos_intersection(set(raw_pos_list[0]), iter(raw_pos_list[1:]))
+            pos_intersection_index = [[pos in pos_intersection for pos in sample_pos] for sample_pos in raw_pos_list]
+            raw_pos_list = [
+                [raw_pos_list[i][j] for j in range(len(pos_intersection_index[i])) if pos_intersection_index[i][j]]
+                for i in range(len(pos_intersection_index))
+            ]
+            raw_llr_list = [
+                [raw_llr_list[i][j] for j in range(len(pos_intersection_index[i])) if pos_intersection_index[i][j]]
+                for i in range(len(pos_intersection_index))
+            ]
+            
+        avg_coverage = [len(pos)/len(set(pos)) for pos in raw_pos_list]
+    
+        non_ambig_llr_count = [sum(1 for l in llrs if abs(l) > self.min_diff_llr) for llrs in raw_llr_list]
+        pos_count = [sum(1 for l in llrs if l > self.min_diff_llr) for llrs in raw_llr_list]
+        n_samples = sum(1 for c in non_ambig_llr_count if c > 0)
 
         n_reads = [len(sample_reads[k]) for k in label_list]
 
@@ -72,6 +98,8 @@ class MethCompWorker:
         med_llr_list = [np.median(llrs) for llrs in raw_llr_list]
 
         # Evaluate median llr value
+        bs_list = [pos / total for pos, total in zip(pos_count, non_ambig_llr_count) if total > 0]
+
         neg_med = sum(med <= -self.min_diff_llr for med in med_llr_list)
         pos_med = sum(med >= self.min_diff_llr for med in med_llr_list)
         ambiguous_med = sum(-self.min_diff_llr <= med <= self.min_diff_llr for med in med_llr_list)
@@ -87,7 +115,7 @@ class MethCompWorker:
             comment = "Insufficient coverage"
             pvalue = np.nan
         # Sufficient samples and effect size
-        elif not neg_med or not pos_med:
+        elif np.max(bs_list) - np.min(bs_list) < self.min_diff_bs:
             comment = "Insufficient effect size"
             pvalue = np.nan
 
@@ -127,6 +155,7 @@ class MethCompWorker:
         res["raw_llr_list"] = list_to_str(raw_llr_list)
         res["comment"] = comment
         res["raw_pos_list"] = list_to_str(raw_pos_list)
+        res["avg_coverage"] = list_to_str(avg_coverage)
         res["unique_cpg_pos"] = len(set(itertools.chain.from_iterable(raw_pos_list)))
 
         return res, counters_to_increase
@@ -181,7 +210,7 @@ def worker_function(*args):
 def Meth_Comp(
     h5_file_list: [str],
     ref_fasta_fn: str,
-    read_group_file: str = None,
+    read_group_key: str = None,
     interval_bed_fn: str = None,
     output_bed_fn: str = None,
     output_tsv_fn: str = None,
@@ -209,8 +238,8 @@ def Meth_Comp(
 
      * h5_file_list
          A list of MetH5 files containing methylation llr
-     * read_group_file
-         Tab-delimited file assigning reads to read groups (e.g. samples or haplotypes). (optional)
+     * read_group_key
+         Key in h5 file containing read groups to be used. (optional)
      * ref_fasta_fn
          Reference file used for alignment in Fasta format (ideally already indexed with samtools faidx)
      * interval_bed_fn
@@ -253,19 +282,15 @@ def Meth_Comp(
     if not output_bed_fn and not output_tsv_fn:
         raise pycoMethError("At least 1 output file is requires (-t or -b)")
 
-    # Automatically define tests and maximal missing samples depending on number of files to compare
-    read_sample_assignment = None
-    if read_group_file is not None:
-        read_sample_assignment = read_readgroups_file(read_group_file)
-        read_sample_assignment = read_sample_assignment.loc[read_sample_assignment["group_set"] != -1]
-        read_sample_assignment = read_sample_assignment.to_dict()["group"]
-        # Number of read groups minus the "-1" which stands for "unphased"
-        sample_id_list = sorted(list(set(read_sample_assignment.values()).difference({-1})))
-    else:
+    if read_group_key is None and not sample_id_list:
+        # If no sample id list is provided and no read group key is set
+        # automatically define tests and maximal missing samples depending on number of files to compare
+        sample_id_list = list(range(len(h5_file_list)))
 
-        if not sample_id_list:
-            sample_id_list = list(range(len(h5_file_list)))
-
+    if read_group_key is not None:
+        # MetH5 file stores sample ids as integer
+        sample_id_list = [int(s) for s in sample_id_list]
+        
     all_samples = len(sample_id_list)
 
     min_samples = all_samples - max_missing
@@ -314,21 +339,13 @@ def Meth_Comp(
             pvalue_adj_method=pvalue_adj_method, pvalue_threshold=pvalue_threshold, only_tested_sites=only_tested_sites,
         )
 
-        h5_read_groups_key = "pycometh_rg" if read_group_file is not None else None  # TODO expose parameter
         # Ensure every h5file is readable and has an index
-        try:
-            for h5_file in h5_file_list:
-                hf = MetH5File(h5_file, "a")
-                hf.create_chunk_index(force_update=False)
-                if read_sample_assignment is not None:
-                    hf.annotate_read_groups(
-                        h5_read_groups_key, read_sample_assignment, exists_ok=True, overwrite=False,
-                    )
-                hf.close()
-        except:
-            raise pycoMethError("Unable to read/write h5 files. Must be writable to create index!")
-
-        del read_sample_assignment
+        # try:
+        # for h5_file in h5_file_list:
+        #    with MetH5File(h5_file, "a") as hf:
+        #        hf.create_chunk_index(force_update=False)
+        # except:
+        #    raise pycoMethError("Unable to read/write h5 files. Must be writable to create index!")
 
         log.info("Starting asynchronous file parsing")
         with tqdm(
@@ -340,7 +357,7 @@ def Meth_Comp(
             pool = Pool(
                 worker_processes,
                 initializer=lambda: initializer(
-                    h5_read_groups_key=h5_read_groups_key,
+                    h5_read_groups_key=read_group_key,
                     sample_id_list=sample_id_list,
                     h5_file_list=h5_file_list,
                     min_diff_llr=min_diff_llr,
@@ -609,6 +626,7 @@ class Comp_Writer:
             "med_llr_list",
             "raw_llr_list",
             "raw_pos_list",
+            "avg_coverage",
             "comment",
         ]
         fp.write(str_join(header, sep="\t", line_end="\n"))
@@ -632,6 +650,7 @@ class Comp_Writer:
             res["med_llr_list"],
             res["raw_llr_list"],
             res["raw_pos_list"],
+            res["avg_coverage"],
             res["comment"],
         ]
         self.tsv_fp.write(str_join(res_line, sep="\t", line_end="\n"))

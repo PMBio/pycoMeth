@@ -34,7 +34,7 @@ setup(
         "statsmodels>=0.11.1",
         "pandas>=1.0.3",
         "Jinja2>=2.11.1",
-        "plotly==4.7.1",
+        "plotly>=4.7.1",
         "pyfaidx>=0.5.8",
         "tqdm>=4.45.0",
         "colorlog>=4.1.0",
