@@ -13,7 +13,7 @@ import pandas as pd
 from scipy.stats import kruskal, mannwhitneyu
 from statsmodels.stats.multitest import multipletests
 from multiprocessing import Pool
-from meth5.meth5_wrapper import MetH5File
+from meth5.meth5 import MetH5File
 
 # Local imports
 from pycoMeth.common import *
