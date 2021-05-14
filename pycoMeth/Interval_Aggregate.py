@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Standard library imports
 from collections import OrderedDict, namedtuple, Counter
 import gzip
@@ -14,21 +14,22 @@ from pycoMeth.common import *
 from pycoMeth.FileParser import FileParser
 from pycoMeth.CoordGen import CoordGen
 
-#~~~~~~~~~~~~~~~~~~~~~~~~Interval_Aggregate MAIN CLASS~~~~~~~~~~~~~~~~~~~~~~~~#
+# ~~~~~~~~~~~~~~~~~~~~~~~~Interval_Aggregate MAIN CLASS~~~~~~~~~~~~~~~~~~~~~~~~#
 def Interval_Aggregate(
-    cpg_aggregate_fn:str,
-    ref_fasta_fn:str,
-    interval_bed_fn:str=None,
-    output_bed_fn:str=None,
-    output_tsv_fn:str=None,
-    interval_size:int=1000,
-    min_cpg_per_interval:int=5,
-    sample_id:str="",
-    min_llr:float=2,
-    verbose:bool=False,
-    quiet:bool=False,
-    progress:bool=False,
-    **kwargs):
+    cpg_aggregate_fn: str,
+    ref_fasta_fn: str,
+    interval_bed_fn: str = None,
+    output_bed_fn: str = None,
+    output_tsv_fn: str = None,
+    interval_size: int = 1000,
+    min_cpg_per_interval: int = 5,
+    sample_id: str = "",
+    min_llr: float = 2,
+    verbose: bool = False,
+    quiet: bool = False,
+    progress: bool = False,
+    **kwargs
+):
     """
     Bin the output of `pycoMeth CpG_Aggregate` in genomic intervals, using either an annotation file containing intervals or a sliding window.
     * cpg_aggregate_fn
@@ -52,97 +53,103 @@ def Interval_Aggregate(
     """
     # Init method
     opt_summary_dict = opt_summary(local_opt=locals())
-    log = get_logger (name="pycoMeth_CpG_Comp", verbose=verbose, quiet=quiet)
-
+    log = get_logger(name="pycoMeth_CpG_Comp", verbose=verbose, quiet=quiet)
+    
     log.warning("Checking options and input files")
     log_dict(opt_summary_dict, log.debug, "Options summary")
-
+    
     # Init collections
     counter = Counter()
     coordgen = CoordGen(ref_fasta_fn, verbose, quiet)
     log_list(coordgen, log.debug, "Coordinate reference summary")
-
+    
     # At least one output file is required, otherwise it doesn't make any sense
-    log.debug ("Checking required output")
+    log.debug("Checking required output")
     if not output_bed_fn and not output_tsv_fn:
-        raise pycoMethError ("At least 1 output file is requires (-t or -b)")
-
+        raise pycoMethError("At least 1 output file is requires (-t or -b)")
+    
     # Define type of window generator
-    log.debug ("Defining interval generator")
+    log.debug("Defining interval generator")
     if interval_bed_fn:
-        log.debug ("Bed annotation generator")
+        log.debug("Bed annotation generator")
         intervals_gen = bed_intervals_gen(coordgen=coordgen, interval_bed_fn=interval_bed_fn)
     else:
-        log.debug ("Sliding window generator")
+        log.debug("Sliding window generator")
         intervals_gen = sliding_intervals_gen(coordgen=coordgen, interval_size=interval_size)
-
+    
     # Open file parser, sit writter and progress bar
     log.warning("Parsing CpG_aggregate file")
     try:
         fp_in = FileParser(
             fn=cpg_aggregate_fn,
-            dtypes={"start":int,"end":int,"median_llr":float,"num_motifs":int},
+            dtypes={"start": int, "end": int, "median_llr": float, "num_motifs": int},
             verbose=verbose,
             quiet=quiet,
-            include_byte_len=True)
-
+            include_byte_len=True,
+        )
+        
         if not fp_in.input_type == "CpG_Aggregate":
-            raise pycoMethError("Invalid input file type passed (cpg_aggregate_fn). Expecting pycoMeth CpG_Aggregate output TSV file")
-
-        fp_out = Interval_Writer (
+            raise pycoMethError(
+                "Invalid input file type passed (cpg_aggregate_fn). Expecting pycoMeth CpG_Aggregate output TSV file"
+            )
+        
+        fp_out = Interval_Writer(
             bed_fn=output_bed_fn,
             tsv_fn=output_tsv_fn,
             sample_id=sample_id,
             min_llr=min_llr,
             min_cpg_per_interval=min_cpg_per_interval,
-            verbose=verbose)
+            verbose=verbose,
+        )
         try:
-            with tqdm (total=len(fp_in), unit=" bytes", unit_scale=True, desc="\tProgress", disable=not progress) as pbar:
+            with tqdm(
+                total=len(fp_in), unit=" bytes", unit_scale=True, desc="\tProgress", disable=not progress
+            ) as pbar:
                 # Get first line
                 line = fp_in.next()
                 line_coord = coordgen(line.chromosome, line.start, line.end)
-                counter["Lines parsed"]+=1
+                counter["Lines parsed"] += 1
                 pbar.update(line.byte_len)
-
+                
                 # Get intervals from either the bed generator or the sliding window generator
-
+                
                 for win_coord in intervals_gen:
-                    counter["Total number of intervals"]+=1
+                    counter["Total number of intervals"] += 1
                     llr_list = []
                     pos_list = []
                     num_motifs = 0
-
+                    
                     while True:
                         # Check if window and center of CpG overlap
                         center = win_coord.center_comp(line_coord)
-
+                        
                         # Center of CpG is greater than current windows = write off current vals and go to next window
-                        if center=="greater":
-                            fp_out.write (coord=win_coord, num_motifs=num_motifs, llr_list=llr_list, pos_list=pos_list)
+                        if center == "greater":
+                            fp_out.write(coord=win_coord, num_motifs=num_motifs, llr_list=llr_list, pos_list=pos_list)
                             break
-
+                        
                         # Center of CpG falls inside current windows =  save llr value
-                        if center=="inside":
+                        if center == "inside":
                             llr_list.append(line.median_llr)
                             pos_list.append(int(line_coord.center))
-                            num_motifs+=line.num_motifs
-
+                            num_motifs += line.num_motifs
+                        
                         # Center of CpG lower or inside the current windows = keep reading lines
                         line = fp_in.next()
                         line_coord = coordgen(line.chromosome, line.start, line.end)
-                        counter["Lines parsed"]+=1
+                        counter["Lines parsed"] += 1
                         pbar.update(line.byte_len)
-
+        
         # Stop when reaching end of input file
         except StopIteration:
             # Write last interval
-            fp_out.write (coord=win_coord, num_motifs=num_motifs, llr_list=llr_list, pos_list=pos_list)
-
+            fp_out.write(coord=win_coord, num_motifs=num_motifs, llr_list=llr_list, pos_list=pos_list)
+    
     finally:
         # Print counters
         log_dict(counter, log.info, "Results summary")
         log_dict(fp_out.counter, log.info, "Writter summary")
-
+        
         # Close input and output files
         for fp in (fp_in, fp_out):
             try:
@@ -150,75 +157,76 @@ def Interval_Aggregate(
             except:
                 pass
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~Interval_Writer HELPER CLASS~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-class Interval_Writer():
-    """Extract data for valid sites and write to BED and/or TSV file"""
 
-    def __init__ (self, bed_fn=None, tsv_fn=None, sample_id=None, min_llr=2, min_cpg_per_interval=5, verbose=True):
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~Interval_Writer HELPER CLASS~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+class Interval_Writer:
+    """Extract data for valid sites and write to BED and/or TSV file"""
+    
+    def __init__(self, bed_fn=None, tsv_fn=None, sample_id=None, min_llr=2, min_cpg_per_interval=5, verbose=True):
         """"""
-        self.log = get_logger (name="Interval_Writer", verbose=verbose)
+        self.log = get_logger(name="Interval_Writer", verbose=verbose)
         self.counter = Counter()
         self.sample_id = sample_id
         self.min_llr = min_llr
         self.min_cpg_per_interval = min_cpg_per_interval
         self.bed_fn = bed_fn
         self.tsv_fn = tsv_fn
-        self.bed_fp = self._init_bed () if bed_fn else None
-        self.tsv_fp = self._init_tsv () if tsv_fn else None
-
+        self.bed_fp = self._init_bed() if bed_fn else None
+        self.tsv_fp = self._init_tsv() if tsv_fn else None
+        
         # Color score tables
         self.pos_colors = OrderedDict()
-        self.pos_colors[min_llr+4]='172,0,38'
-        self.pos_colors[min_llr+3]='205,11,33'
-        self.pos_colors[min_llr+2]='231,34,30'
-        self.pos_colors[min_llr+1]='249,73,40'
-        self.pos_colors[min_llr]='252,118,53'
-        self.pos_colors[0]='230,230,230'
-
+        self.pos_colors[min_llr + 4] = "172,0,38"
+        self.pos_colors[min_llr + 3] = "205,11,33"
+        self.pos_colors[min_llr + 2] = "231,34,30"
+        self.pos_colors[min_llr + 1] = "249,73,40"
+        self.pos_colors[min_llr] = "252,118,53"
+        self.pos_colors[0] = "230,230,230"
+        
         self.neg_colors = OrderedDict()
-        self.neg_colors[-min_llr-4]='28,45,131'
-        self.neg_colors[-min_llr-3]='35,70,156'
-        self.neg_colors[-min_llr-2]='33,102,171'
-        self.neg_colors[-min_llr-1]='29,140,190'
-        self.neg_colors[-min_llr]='52,168,194'
-        self.neg_colors[0]='230,230,230'
-
-    #~~~~~~~~~~~~~~PUBLIC METHODS~~~~~~~~~~~~~~#
-    def write (self, coord, num_motifs, llr_list, pos_list):
+        self.neg_colors[-min_llr - 4] = "28,45,131"
+        self.neg_colors[-min_llr - 3] = "35,70,156"
+        self.neg_colors[-min_llr - 2] = "33,102,171"
+        self.neg_colors[-min_llr - 1] = "29,140,190"
+        self.neg_colors[-min_llr] = "52,168,194"
+        self.neg_colors[0] = "230,230,230"
+    
+    # ~~~~~~~~~~~~~~PUBLIC METHODS~~~~~~~~~~~~~~#
+    def write(self, coord, num_motifs, llr_list, pos_list):
         """"""
         if not llr_list:
-             self.counter["Empty intervals skipped"]+=1
+            self.counter["Empty intervals skipped"] += 1
         elif len(llr_list) < self.min_cpg_per_interval:
-            self.counter["Low CpG intervals skipped"]+=1
+            self.counter["Low CpG intervals skipped"] += 1
         else:
-            self.counter["Valid intervals written"]+=1
-            med_llr = round(np.median(llr_list), 3) # No points going further as nanopolish precision if 2 digits only
+            self.counter["Valid intervals written"] += 1
+            med_llr = round(np.median(llr_list), 3)  # No points going further as nanopolish precision if 2 digits only
             if self.bed_fn:
-                self._write_bed (coord, med_llr)
+                self._write_bed(coord, med_llr)
             if self.tsv_fn:
-                self._write_tsv (coord, num_motifs, med_llr, llr_list, pos_list)
-
-    def close (self):
+                self._write_tsv(coord, num_motifs, med_llr, llr_list, pos_list)
+    
+    def close(self):
         for fp in (self.bed_fp, self.tsv_fp):
             try:
                 fp.close()
             except:
                 pass
-
-    #~~~~~~~~~~~~~~PRIVATE METHODS~~~~~~~~~~~~~~#
-    def _init_bed (self):
+    
+    # ~~~~~~~~~~~~~~PRIVATE METHODS~~~~~~~~~~~~~~#
+    def _init_bed(self):
         """Open BED file and write file header"""
         self.log.debug("Initialise output bed file")
-        mkbasedir (self.bed_fn, exist_ok=True)
+        mkbasedir(self.bed_fn, exist_ok=True)
         fp = gzip.open(self.bed_fn, "wt") if self.bed_fn.endswith(".gz") else open(self.bed_fn, "w")
         fp.write("track name={}_Interval itemRgb=On\n".format(self.sample_id))
         return fp
-
-    def _write_bed (self, coord, med_llr):
+    
+    def _write_bed(self, coord, med_llr):
         """Write line to BED file"""
-
+        
         # Define track color depending on med_llr value
-        if med_llr>=0:
+        if med_llr >= 0:
             for min_llr, color in self.pos_colors.items():
                 if med_llr >= min_llr:
                     break
@@ -226,53 +234,68 @@ class Interval_Writer():
             for min_llr, color in self.neg_colors.items():
                 if med_llr <= min_llr:
                     break
-
+        
         # Write line
         res_line = [coord.chr_name, coord.start, coord.end, ".", med_llr, ".", coord.start, coord.end, color]
         self.bed_fp.write(str_join(res_line, sep="\t", line_end="\n"))
-
-    def _init_tsv (self):
+    
+    def _init_tsv(self):
         """Open TSV file and write file header"""
         self.log.debug("Initialise output tsv file")
-        mkbasedir (self.tsv_fn, exist_ok=True)
+        mkbasedir(self.tsv_fn, exist_ok=True)
         fp = gzip.open(self.tsv_fn, "wt") if self.tsv_fn.endswith(".gz") else open(self.tsv_fn, "w")
         fp.write
         # Write header line
-        header = ["chromosome","start","end","num_motifs","median_llr","llr_list","pos_list"]
+        header = ["chromosome", "start", "end", "num_motifs", "median_llr", "llr_list", "pos_list"]
         fp.write(str_join(header, sep="\t", line_end="\n"))
         return fp
-
-    def _write_tsv (self, coord, num_motifs, med_llr, llr_list, pos_list):
+    
+    def _write_tsv(self, coord, num_motifs, med_llr, llr_list, pos_list):
         """Write line to TSV file"""
-        res_line = [coord.chr_name, coord.start, coord.end, num_motifs, med_llr, list_to_str(llr_list), list_to_str(pos_list)]
+        res_line = [
+            coord.chr_name,
+            coord.start,
+            coord.end,
+            num_motifs,
+            med_llr,
+            list_to_str(llr_list),
+            list_to_str(pos_list),
+        ]
         self.tsv_fp.write(str_join(res_line, sep="\t", line_end="\n"))
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~Interval generator helper functions~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-def sliding_intervals_gen (coordgen, interval_size=1000):
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~Interval generator helper functions~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+def sliding_intervals_gen(coordgen, interval_size=1000):
     """
     Generate sliding window coordinate intervals over the entire reference genome provided
     """
     for chr_name, chr_len in coordgen.chr_name_len.items():
         for start in range(0, chr_len, interval_size):
-            end = start+interval_size if start+interval_size <= chr_len else chr_len
+            end = start + interval_size if start + interval_size <= chr_len else chr_len
             yield (coordgen(chr_name, start, end))
 
-def bed_intervals_gen (coordgen, interval_bed_fn):
+
+def bed_intervals_gen(coordgen, interval_bed_fn):
     """
     Generate coordinate intervals corresponding to the provided bed file
     """
     with FileParser(
         fn=interval_bed_fn,
         colnames=["chrom", "start", "end"],
-        dtypes={"start":int,"end":int},
+        dtypes={"start": int, "end": int},
         force_col_len=False,
         comment="track",
-        quiet=True) as bed:
-
+        quiet=True,
+    ) as bed:
+        
         prev_ct = None
         for line in bed:
             ct = coordgen(line.chrom, line.start, line.end)
             if prev_ct and ct < prev_ct:
-                raise ValueError("Unsorted coordinate found in bed file {} found after {}. Chromosomes have to be ordered as in fasta reference file".format(ct, prev_ct))
+                raise ValueError(
+                    "Unsorted coordinate found in bed file {} found after {}. Chromosomes have to be ordered as in fasta reference file".format(
+                        ct, prev_ct
+                    )
+                )
             prev_ct = ct
             yield (ct)

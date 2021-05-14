@@ -12,23 +12,24 @@ with open("README.md", "r") as fh:
 
 # Collect info in a dictionnary for setup.py
 setup(
-    name = name,
-    description = description,
-    version = version,
-    long_description = long_description,
+    name=name,
+    description=description,
+    version=version,
+    long_description=long_description,
     long_description_content_type="text/markdown",
-    url = "https://github.com/a-slide/pycoMeth",
-    author = 'Adrien Leger',
-    author_email = 'aleg@ebi.ac.uk',
-    license= "GPL",
-    python_requires ='>=3.7',
-    classifiers = [
-        'Development Status :: 3 - Alpha',
-        'Intended Audience :: Science/Research',
-        'Topic :: Scientific/Engineering :: Bio-Informatics',
-        'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
-        'Programming Language :: Python :: 3'],
-    install_requires = [
+    url="https://github.com/a-slide/pycoMeth",
+    author="Adrien Leger",
+    author_email="aleg@ebi.ac.uk",
+    license="GPL",
+    python_requires=">=3.7",
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Science/Research",
+        "Topic :: Scientific/Engineering :: Bio-Informatics",
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+        "Programming Language :: Python :: 3",
+    ],
+    install_requires=[
         "numpy>=1.14.0",
         "scipy==1.4.1",
         "statsmodels>=0.11.1",
@@ -39,8 +40,10 @@ setup(
         "tqdm>=4.45.0",
         "colorlog>=4.1.0",
         "nbformat>=4.2.0",
-        "kaleido"],
-    packages = [name],
-    package_dir = {name: name},
-    package_data = {name: ['templates/*']},
-    entry_points = {'console_scripts': ['pycoMeth=pycoMeth.__main__:main']})
+        "kaleido",
+    ],
+    packages=[name],
+    package_dir={name: name},
+    package_data={name: ["templates/*"]},
+    entry_points={"console_scripts": ["pycoMeth=pycoMeth.__main__:main"]},
+)

@@ -2,4 +2,4 @@
 
 # Define self package variable
 __version__ = "0.4.15"
-__description__ = 'DNA methylation analysis downstream to Nanopolish for Oxford Nanopore DNA sequencing datasets'
+__description__ = "DNA methylation analysis downstream to Nanopolish for Oxford Nanopore DNA sequencing datasets"
