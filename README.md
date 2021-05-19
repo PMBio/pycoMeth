@@ -56,4 +56,5 @@ Adrien Leger. (2020, January 28). a-slide/pycoMeth. Zenodo. https://doi.org/10.5
 
 ## Authors and contributors
 
-* Adrien Leger (@a-slide) - aleg {at} ebi.ac.uk
+* Rene Snajder (@snajder-r): rene.snajder@dkfz-heidelberg.de
+* Adrien Ledger (@a-slide)
