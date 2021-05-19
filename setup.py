@@ -13,7 +13,7 @@ with open("README.md", "r") as fh:
 setup(
     name="pycoMeth",
     description="HDF5 based file format for storage, retrieval, and analysis of modification predictions from Nanopore",
-    version="1.0.0a1",
+    version="2.0.0a1",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/snajder-r/pycoMeth2,",
