@@ -11,6 +11,7 @@
 [![Anaconda Downloads](https://anaconda.org/aleg/pycometh/badges/downloads.svg)](https://anaconda.org/aleg/pycometh)
 
 ---
+Version in this branch: 1.0.0a1
 
 **Full documentation is available at https://a-slide.github.io/pycoMeth/**
 

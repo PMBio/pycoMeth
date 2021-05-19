@@ -1,0 +1,44 @@
+version:
+  major: 1
+  minor: 0
+  micro: 0
+  a: 1
+  b: null
+  rc: null
+  post: null
+  dev: null
+managed_values:
+  __package_name__: pycoMeth
+  __package_description__: HDF5 based file format for storage, retrieval, and analysis
+    of modification predictions from Nanopore
+  __package_url__: https://github.com/snajder-r/pycoMeth2,
+  __author_name__: Rene Snajder
+  __author_email__: r.snajder@dkfz-heidelberg.de
+  __author_url__: https://github.com/snajder-r
+  __package_licence__: GPL
+  __package_licence_url__: https://opensource.org/licenses/MIT
+  __minimal_python__: '3.7'
+  __entry_point1__: meth5=meth5.__main__:main
+  __dependencies__:
+  - numpy>=1.14.0
+  - scipy==1.4.1
+  - statsmodels>=0.11.1
+  - pandas>=1.0.3
+  - Jinja2>=2.11.1
+  - plotly>=4.7.1
+  - pyfaidx>=0.5.8
+  - tqdm>=4.45.0
+  - colorlog>=4.1.0
+  - nbformat>=4.2.0
+  - kaleido
+  __classifiers__:
+  - 'Development Status :: 4 - Beta'
+  - 'Intended Audience :: Science/Research'
+  - 'Topic :: Scientific/Engineering :: Bio-Informatics'
+  - 'License :: OSI Approved :: GNU General Public License v3 (GPLv3)'
+  - 'Programming Language :: Python :: 3'
+  __citation__: Rene Snajder. (2021, May 4). snajder-r/meth5format
+managed_files:
+  versipy_templates/setup.py: setup.py
+  versipy_templates/README.md: README.md
+  versipy_templates/meta.yaml: meta.yaml
