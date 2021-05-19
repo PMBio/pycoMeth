@@ -14,7 +14,7 @@
 
 **Version notice:** This branch contains version 1 of PycoMeth, as developed my Adrien Leger.
 
-For PycoMeth 2, which uses MetH5 input format, check out the branch [PycoMeth2](https://github.com/snajder-r/pycoMeth/tree/pycoMeth2) (currently in alpha stage).
+For PycoMeth 2, which uses [MetH5](https://github.com/snajder-r/meth5format) input format, check out the branch [PycoMeth2](https://github.com/snajder-r/pycoMeth/tree/pycoMeth2) (currently in alpha stage).
 
 ---
 
