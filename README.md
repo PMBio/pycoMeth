@@ -10,6 +10,12 @@
 [![Anaconda Version](https://anaconda.org/aleg/pycometh/badges/version.svg)](https://anaconda.org/aleg/pycometh)
 [![Anaconda Downloads](https://anaconda.org/aleg/pycometh/badges/downloads.svg)](https://anaconda.org/aleg/pycometh)
 
+--- 
+
+**Version notice:** This branch contains version 1 of PycoMeth, as developed my Adrien Leger.
+
+For PycoMeth 2, which uses MetH5 input format, check out the branch [PycoMeth2](https://github.com/snajder-r/pycoMeth/tree/pycoMeth2) (currently in alpha stage).
+
 ---
 
 **Full documentation is available at https://a-slide.github.io/pycoMeth/**
