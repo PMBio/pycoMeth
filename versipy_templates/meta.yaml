@@ -1,0 +1,46 @@
+{% set version = "__package_version__" %}
+{% set name = "pycoMeth" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: dist/{{ name }}-{{ version }}.tar.gz
+
+build:
+  number: 0
+  script: "pip install {{ name }}-{{ version }}.tar.gz --no-deps --ignore-installed -vv "
+  entry_points:
+    - pycoMeth=pycoMeth.__main__:main
+  noarch: "python"
+
+requirements:
+  build:
+    - python>=__minimal_python__
+    - pip>=19.2.1
+    - ripgrep>=11.0.1
+  run:
+    - __@{
+    - ::dependencies}__
+
+test:
+  imports:
+    - pycoMeth.FileParser
+    - pycoMeth.CoordGen
+    - pycoMeth.CpG_Aggregate
+    - pycoMeth.Interval_Aggregate
+    - pycoMeth.Meth_Comp
+    - pycoMeth.Comp_Report
+    - pycoMeth.CGI_Finder
+  commands:
+    - pycoMeth CpG_Aggregate --help
+    - pycoMeth Interval_Aggregate --help
+    - pycoMeth Meth_Comp --help
+    - pycoMeth Comp_Report --help
+    - pycoMeth CGI_Finder --help
+
+about:
+  home: "https://github.com/a-slide/pycoMeth"
+  license: "GPL"
+  summary: "DNA methylation analysis for Oxford Nanopore DNA sequencing datasets downstream to Nanopolish"
