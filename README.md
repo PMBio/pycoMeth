@@ -2,7 +2,7 @@
 
 [![GitHub license](https://img.shields.io/github/license/a-slide/pycoMeth.svg)](https://github.com/a-slide/pycoMeth/blob/master/LICENSE)
 [![Language](https://img.shields.io/badge/Language-Python3.6+-yellow.svg)](https://www.python.org/)
-[![DOI](https://zenodo.org/badge/211195001.svg)](https://zenodo.org/badge/latestdoi/211195001)
+[![DOI](https://zenodo.org/badge/336310306.svg)](https://zenodo.org/badge/latestdoi/336310306)
 [![Build Status](https://travis-ci.com/a-slide/pycoMeth.svg?branch=master)](https://travis-ci.com/a-slide/pycoMeth)
 
 [![PyPI version](https://badge.fury.io/py/pycoMeth.svg)](https://badge.fury.io/py/pycoMeth)
@@ -13,7 +13,7 @@
 ---
 Version in this branch: 2.0.0a1
 
-**Full documentation is available at https://a-slide.github.io/pycoMeth/**
+PycoMeth1 documentation is still available at https://a-slide.github.io/pycoMeth/. Stay tuned for an updated documentation for PycoMeth2!
 
 ---
 
@@ -50,7 +50,11 @@ Please be aware that `pycoMeth` is a research package that is still under develo
 
 ### Citing
 
-The repository is archived at Zenodo. If you use `pycoMeth` please cite as follow:
+The repository is archived at Zenodo. If you use `pycoMeth` in version 2 please cite as follow:
+
+Rene Snajder. (2021, May 18). snajder-r/pycoMeth. Zenodo. https://doi.org/10.5281/zenodo.4772051
+
+If you use any version older than version 2, please cite as:
 
 Adrien Leger. (2020, January 28). a-slide/pycoMeth. Zenodo. https://doi.org/10.5281/zenodo.3629254
 
