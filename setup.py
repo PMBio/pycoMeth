@@ -4,7 +4,6 @@
 from setuptools import setup
 
 # Define package info
-name = ""
 description = "DNA methylation analysis downstream to Nanopolish for Oxford Nanopore DNA sequencing datasets"
 with open("README.md", "r") as fh:
     long_description = fh.read()
@@ -41,8 +40,8 @@ setup(
         "nbformat>=4.2.0",
         "kaleido"
     ],
-    packages=[name],
-    package_dir={name: name},
-    package_data={name: ["templates/*"]},
+    packages=["pycoMeth"],
+    package_dir={"pycoMeth": "pycoMeth"},
+    package_data={"pycoMeth": ["templates/*"]},
     entry_points={"console_scripts": ["pycoMeth=pycoMeth.__main__:main"]},
 )
