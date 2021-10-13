@@ -61,7 +61,6 @@ class MethCompWorker:
                 pass
     
     def compute_pvalue(self, interval, sample_llrs, sample_pos, sample_reads):
-        
         label_list = list([k for k in sample_llrs.keys() if len(sample_llrs[k]) > 0])
         raw_llr_list = [sample_llrs[k] for k in label_list]
         raw_pos_list = [sample_pos[k] for k in label_list]
@@ -86,7 +85,6 @@ class MethCompWorker:
                 [raw_llr_list[i][j] for j in range(len(pos_intersection_index[i])) if pos_intersection_index[i][j]]
                 for i in range(len(pos_intersection_index))
             ]
-        
         avg_coverage = [len(pos) / len(set(pos)) for pos in raw_pos_list]
         
         non_ambig_llr_count = [sum(1 for l in llrs if abs(l) > self.min_diff_llr) for llrs in raw_llr_list]
@@ -111,7 +109,7 @@ class MethCompWorker:
             # Not enough samples
             comment = "Insufficient samples"
             pvalue = np.nan
-        elif np.min(n_reads) < self.min_num_reads_per_interval:
+        elif np.min(avg_coverage) < self.min_num_reads_per_interval:
             # Not enough reads in one of the samples
             comment = "Insufficient coverage"
             pvalue = np.nan
@@ -131,7 +129,6 @@ class MethCompWorker:
             
             # Fix and categorize p-values
             if pvalue is np.nan or pvalue is None or pvalue > 1 or pvalue < 0:
-                pvalue = 1.0
                 counters_to_increase.append("Sites with invalid pvalue")
             
             # Correct very low pvalues to minimal float size
@@ -172,21 +169,19 @@ class MethCompWorker:
             
             if interval_container is None:
                 continue
-            
             llrs = interval_container.get_llrs()[:]
             pos = interval_container.get_ranges()[:, 0]
-            read_names = interval_container.get_read_names()[:]
+            read_names = interval_container.get_read_ids()[:]
             
             if self.h5_read_groups_key is not None:
                 read_samples = interval_container.get_read_groups(self.h5_read_groups_key)
-                
-                mask = read_samples == sample_id
+                mask = [rs == sample_id for rs in read_samples]
                 llrs = llrs[mask]
                 pos = pos[mask]
                 read_names = read_names[mask]
             sample_llrs[sample_id] = llrs.tolist()
             sample_pos[sample_id] = pos.tolist()
-            sample_reads[sample_id] = read_names
+            sample_reads[sample_id] = list(set(read_names))
         
         return self.compute_pvalue(interval, sample_llrs, sample_pos, sample_reads)
 
@@ -205,13 +200,25 @@ def worker_function(*args):
     return worker(*args)
 
 
+def read_sample_ids_from_read_groups(h5_file_list, read_group_key):
+    rg_dict = {}
+    for fn in h5_file_list:
+        with MetH5File(fn, "r") as f:
+            f_rg_dict = f.get_all_read_groups(read_group_key)
+            for k, v in f_rg_dict.items():
+                if k in rg_dict and rg_dict[k] != v:
+                    raise pycoMethError("Read groups in meth5 files must have the same encoding")
+            rg_dict.update(f_rg_dict)
+    return [k for k in rg_dict]
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~CpG_Comp MAIN CLASS~~~~~~~~~~~~~~~~~~~~~~~~#
 
 
 def Meth_Comp(
     h5_file_list: [str],
     ref_fasta_fn: str,
-    read_group_key: str = None,
+    read_groups_key: str = None,
     interval_bed_fn: str = None,
     output_bed_fn: str = None,
     output_tsv_fn: str = None,
@@ -239,7 +246,7 @@ def Meth_Comp(
 
      * h5_file_list
          A list of MetH5 files containing methylation llr
-     * read_group_key
+     * read_groups_key
          Key in h5 file containing read groups to be used. (optional)
      * ref_fasta_fn
          Reference file used for alignment in Fasta format (ideally already indexed with samtools faidx)
@@ -283,15 +290,16 @@ def Meth_Comp(
     if not output_bed_fn and not output_tsv_fn:
         raise pycoMethError("At least 1 output file is requires (-t or -b)")
     
-    if read_group_key is None and not sample_id_list:
-        # If no sample id list is provided and no read group key is set
-        # automatically define tests and maximal missing samples depending on number of files to compare
-        sample_id_list = list(range(len(h5_file_list)))
-    
-    if read_group_key is not None:
-        # MetH5 file stores sample ids as integer
+    if sample_id_list is None:
+        if read_groups_key is None:
+            # If no sample id list is provided and no read group key is set
+            # automatically define tests and maximal missing samples depending on number of files to compare
+            sample_id_list = list(range(len(h5_file_list)))
+        else:
+            sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_groups_key)
+    elif read_groups_key is not None:
+        # H5 file stores groups as int
         sample_id_list = [int(s) for s in sample_id_list]
-    
     all_samples = len(sample_id_list)
     
     min_samples = all_samples - max_missing
@@ -356,7 +364,7 @@ def Meth_Comp(
             pool = Pool(
                 worker_processes,
                 initializer=lambda: initializer(
-                    h5_read_groups_key=read_group_key,
+                    h5_read_groups_key=read_groups_key,
                     sample_id_list=sample_id_list,
                     h5_file_list=h5_file_list,
                     min_diff_llr=min_diff_llr,
@@ -495,7 +503,11 @@ class StatsResults:
             if not np.isnan(res["pvalue"]):
                 pvalue_idx.append(i)
                 pvalue_list.append(res["pvalue"])
+            else:
+                pvalue_idx.append(i)
+                pvalue_list.append(1.0)
         
+        print(pvalue_list)
         # Adjust values
         adj_pvalue_list = multipletests(
             pvals=pvalue_list,
@@ -521,8 +533,11 @@ class StatsResults:
                 comment = "Non-significant pvalue"
             
             # update counters and update comment and adj p-value
-            self.counter[comment] += 1
-            self.res_list[i]["comment"] = comment
+            if self.res_list[i]["comment"] == "Valid":
+                # Overwriting comment, but only if it was a site that was tested
+                # (not if it is a site that was excluded for coverage or other reasons)
+                self.counter[comment] += 1
+                self.res_list[i]["comment"] = comment
             self.res_list[i]["adj_pvalue"] = adj_pvalue
 
 

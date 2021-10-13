@@ -62,7 +62,7 @@ def main(args=None):
     sp_met_io = sp_met.add_argument_group("Input/Output options")
     arg_from_docstr(sp_met_io, f, "h5_file_list", "i")
     arg_from_docstr(sp_met_io, f, "ref_fasta_fn", "f")
-    arg_from_docstr(sp_met_io, f, "read_group_key", "r")
+    arg_from_docstr(sp_met_io, f, "read_groups_key", "r")
     arg_from_docstr(sp_met_io, f, "interval_bed_fn", "a")
     arg_from_docstr(sp_met_io, f, "output_bed_fn", "b")
     arg_from_docstr(sp_met_io, f, "output_tsv_fn", "t")
