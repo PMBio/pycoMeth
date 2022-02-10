@@ -2,16 +2,16 @@ version:
   major: 2
   minor: 0
   micro: 0
-  a: 1
+  a: null
   b: null
   rc: null
   post: null
   dev: null
 managed_values:
   __package_name__: pycoMeth
-  __package_description__: HDF5 based file format for storage, retrieval, and analysis
-    of modification predictions from Nanopore
-  __package_url__: https://github.com/snajder-r/pycoMeth2,
+  __package_description__: Differential methylation calling suite for Nanopore methylation
+    calls PycoMeth
+  __package_url__: https://github.com/snajder-r/pycoMeth,
   __author_name__: Rene Snajder
   __author_email__: r.snajder@dkfz-heidelberg.de
   __author_url__: https://github.com/snajder-r

@@ -4,13 +4,14 @@
 from setuptools import setup
 
 # Define package info
+name = "__package_name__"
 description = "DNA methylation analysis downstream to Nanopolish for Oxford Nanopore DNA sequencing datasets"
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 # Collect info in a dictionnary for setup.py
 setup(
-    name="__package_name__",
+    name=name,
     description="__package_description__",
     version="__package_version__",
     long_description=long_description,
@@ -28,8 +29,8 @@ setup(
         __@{,
         ::"dependencies"}__
     ],
-    packages=["__package_name__"],
-    package_dir={"__package_name__": "__package_name__"},
-    package_data={"__package_name__": ["templates/*"]},
+    packages=[name],
+    package_dir={name: name},
+    package_data={name: ["templates/*"]},
     entry_points={"console_scripts": ["pycoMeth=pycoMeth.__main__:main"]},
 )

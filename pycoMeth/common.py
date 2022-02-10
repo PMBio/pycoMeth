@@ -26,7 +26,8 @@ try:
     
     STATIC_EXPORT = True
 except (ModuleNotFoundError, ImportError) as E:
-    STATIC_EXPORT=False
+    print("Cannot import dependencies required for static image export")
+    STATIC_EXPORT = False
     pass
 
 # ~~~~~~~~~~~~~~FUNCTIONS~~~~~~~~~~~~~~#
