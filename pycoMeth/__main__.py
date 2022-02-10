@@ -76,6 +76,9 @@ def main(args=None):
     arg_from_docstr(sp_met_ms, f, "pvalue_adj_method")
     arg_from_docstr(sp_met_ms, f, "pvalue_threshold")
     arg_from_docstr(sp_met_ms, f, "only_tested_sites")
+    arg_from_docstr(sp_met_ms, f, "hypothesis")
+    arg_from_docstr(sp_met_ms, f, "do_independent_hypothesis_weighting")
+    
     
     # Comp_Report subparser
     f = Comp_Report

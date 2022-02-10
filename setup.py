@@ -4,18 +4,19 @@
 from setuptools import setup
 
 # Define package info
+name = "pycoMeth"
 description = "DNA methylation analysis downstream to Nanopolish for Oxford Nanopore DNA sequencing datasets"
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
 # Collect info in a dictionnary for setup.py
 setup(
-    name="pycoMeth",
-    description="HDF5 based file format for storage, retrieval, and analysis of modification predictions from Nanopore",
-    version="2.0.0a1",
+    name=name,
+    description="Differential methylation calling suite for Nanopore methylation calls PycoMeth",
+    version="2.0.0",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/snajder-r/pycoMeth2,",
+    url="https://github.com/snajder-r/pycoMeth,",
     author="Rene Snajder",
     author_email="r.snajder@dkfz-heidelberg.de",
     license="GPL",
@@ -40,8 +41,8 @@ setup(
         "nbformat>=4.2.0",
         "kaleido"
     ],
-    packages=["pycoMeth"],
-    package_dir={"pycoMeth": "pycoMeth"},
-    package_data={"pycoMeth": ["templates/*"]},
+    packages=[name],
+    package_dir={name: name},
+    package_data={name: ["templates/*"]},
     entry_points={"console_scripts": ["pycoMeth=pycoMeth.__main__:main"]},
 )

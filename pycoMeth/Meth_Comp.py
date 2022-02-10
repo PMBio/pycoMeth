@@ -3,14 +3,17 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~IMPORTS~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 # Standard library imports
 import itertools
-from typing import IO, List, Generator, Dict
+import random
+from typing import IO, List, Generator, Dict, Any
+from math import sqrt
 import fileinput
 
 # Third party imports
+import scipy.sparse
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-from scipy.stats import kruskal, mannwhitneyu
+from scipy.stats import kruskal, mannwhitneyu, wilcoxon
 from statsmodels.stats.multitest import multipletests
 from multiprocessing import Pool
 from meth5.meth5 import MetH5File
@@ -33,6 +36,8 @@ class MethCompWorker:
         min_samples,
         pvalue_method,
         min_num_reads_per_interval,
+        hypothesis,
+        do_independent_hypothesis_weighting,
     ):
         self.h5_read_groups_key = h5_read_groups_key
         self.min_diff_llr = min_diff_llr
@@ -41,8 +46,11 @@ class MethCompWorker:
         self.min_pval = np.nextafter(float(0), float(1))
         self.min_num_reads_per_interval = min_num_reads_per_interval
         self.sample_hf_files: Dict[str, MetH5File] = {}
-        self.min_diff_bs = 0.25  # TODO expose parameters
-        self.filter_non_overlapping_sites = False  # TODO expose parameters
+        self.llr_threshold = 2.0  # TODO expose parameter
+        self.min_diff_bs = 0.25  # TODO expose parameter
+        self.do_filter_non_overlapping_sites = False  # TODO expose parameter
+        self.hypothesis = hypothesis
+        self.do_independent_hypothesis_weighting = do_independent_hypothesis_weighting
         
         if h5_read_groups_key is None:
             for sample_id, h5_file in zip(sample_id_list, h5_file_list):
@@ -60,101 +68,195 @@ class MethCompWorker:
             except:
                 pass
     
-    def compute_pvalue(self, interval, sample_llrs, sample_pos, sample_reads):
-        label_list = list([k for k in sample_llrs.keys() if len(sample_llrs[k]) > 0])
-        raw_llr_list = [sample_llrs[k] for k in label_list]
-        raw_pos_list = [sample_pos[k] for k in label_list]
+    def compute_ihw_weight(self, test_values: List[List[float]]) -> float:
+        flat_list = [v for vl in test_values for v in vl]
+        mean = sum(flat_list) / len(flat_list)
+        variance = sum((v - mean)**2 for v in flat_list)  / (len(flat_list)-1)
+        std = sqrt(variance)
+        return std
+    
+    def compute_site_betascores(
+        self, raw_pos_list: List[List[Any]], raw_llr_list: List[List[float]]
+    ) -> List[List[float]]:
+        """
+        Computes betascores (methylation frequency) based on sites. Two lists
+        :param raw_pos_list: positions for each llr for site-frequency
+        :param raw_llr_list: one list of log-likelihood ratios per sample to be compared
+        :return:
+        """
+        unique_pos = list(set().union(*[set(pos) for pos in raw_pos_list]))
+        met_list = [
+            [sum(llr > self.llr_threshold for s_pos, llr in zip(poss, llrs) if s_pos == pos) for pos in unique_pos]
+            for poss, llrs in zip(raw_pos_list, raw_llr_list)
+        ]
+        nonambig_list = [
+            [
+                sum(abs(llr) > self.llr_threshold for s_pos, llr in zip(s_poss, llrs) if s_pos == pos)
+                for pos in unique_pos
+            ]
+            for s_poss, llrs in zip(raw_pos_list, raw_llr_list)
+        ]
+        is_valid_idx = [True for _ in nonambig_list[0]]
+        for na in nonambig_list:
+            is_valid_idx = [a and b for a, b in zip(is_valid_idx, [n > 0 for n in na])]
+        met_list = [[b for b, i in zip(met, is_valid_idx) if i] for met in met_list]
+        nonambig_list = [[b for b, i in zip(nonambig, is_valid_idx) if i] for nonambig in nonambig_list]
+        bs_list = [[m / na for m, na in zip(met, nonambig)] for met, nonambig in zip(met_list, nonambig_list)]
+        return bs_list
+    
+    def compute_read_betascores(
+        self, raw_read_list: List[List[Any]], raw_llr_list: List[List[float]]
+    ) -> List[List[float]]:
+        """
+        Computes betascores (methylation frequency) based on reads. Two lists
+        :param raw_read_list: readname for each llr for site-frequency
+        :param raw_llr_list: one list of log-likelihood ratios per sample to be compared
+        :return:
+        """
+        num_samples = len(raw_llr_list)
+        bs_list = []
+        for sample in range(num_samples):
+            unique_reads = list(set(raw_read_list[sample]))
+            if len(unique_reads) > 1000:
+                # excessive coverage indicates weird mapping - we will subsample
+                unique_reads = [r for r in unique_reads if random.random() < 100 / len(unique_reads)]
+            met_list = [
+                sum(
+                    llr > self.llr_threshold
+                    for read, llr in zip(raw_read_list[sample], raw_llr_list[sample])
+                    if read == r
+                )
+                for r in unique_reads
+            ]
+            nonambig_list = [
+                sum(
+                    abs(llr) > self.llr_threshold
+                    for read, llr in zip(raw_read_list[sample], raw_llr_list[sample])
+                    if read == r
+                )
+                for r in unique_reads
+            ]
+            bs = [m / na for m, na in zip(met_list, nonambig_list) if na > 0]
+            bs_list.append(bs)
+        return bs_list
+    
+    def filter_non_overlapping_sites(self, raw_pos_list, raw_llr_list, raw_read_list):
+        def create_pos_intersection(left: set, it):
+            try:
+                ret = left.intersection(set(next(it)))
+                ret = create_pos_intersection(ret, it)
+                return ret
+            except StopIteration:
+                return left
         
-        if len(raw_pos_list) > 1 and self.filter_non_overlapping_sites:
-            
-            def create_pos_intersection(left: set, it):
-                try:
-                    ret = left.intersection(set(next(it)))
-                    ret = create_pos_intersection(ret, it)
-                    return ret
-                except StopIteration:
-                    return left
-            
-            pos_intersection = create_pos_intersection(set(raw_pos_list[0]), iter(raw_pos_list[1:]))
-            pos_intersection_index = [[pos in pos_intersection for pos in sample_pos] for sample_pos in raw_pos_list]
-            raw_pos_list = [
-                [raw_pos_list[i][j] for j in range(len(pos_intersection_index[i])) if pos_intersection_index[i][j]]
+        pos_intersection = create_pos_intersection(set(raw_pos_list[0]), iter(raw_pos_list[1:]))
+        pos_intersection_index = [[pos in pos_intersection for pos in sample_pos] for sample_pos in raw_pos_list]
+        
+        def filter(l):
+            return [
+                [l[i, j] for j in range(len(pos_intersection_index[i])) if pos_intersection_index[i][j]]
                 for i in range(len(pos_intersection_index))
             ]
-            raw_llr_list = [
-                [raw_llr_list[i][j] for j in range(len(pos_intersection_index[i])) if pos_intersection_index[i][j]]
-                for i in range(len(pos_intersection_index))
-            ]
+        
+        raw_pos_list = filter(raw_pos_list)
+        raw_llr_list = filter(raw_llr_list)
+        raw_read_list = filter(raw_read_list)
+        
+        return raw_pos_list, raw_llr_list, raw_read_list
+    
+    def compute_pvalue(self, interval, label_list, raw_llr_list, raw_pos_list, raw_reads_list):
+        counters_to_increase = []
+        res = OrderedDict()
+        res["chromosome"] = interval.chr_name
+        res["start"] = interval.start
+        res["end"] = interval.end
         avg_coverage = [len(pos) / len(set(pos)) for pos in raw_pos_list]
-        
-        non_ambig_llr_count = [sum(1 for l in llrs if abs(l) > self.min_diff_llr) for llrs in raw_llr_list]
-        pos_count = [sum(1 for l in llrs if l > self.min_diff_llr) for llrs in raw_llr_list]
+        non_ambig_llr_count = [sum(1 for l in llrs if abs(l) > self.llr_threshold) for llrs in raw_llr_list]
+        pos_count = [sum(1 for l in llrs if l > self.llr_threshold) for llrs in raw_llr_list]
         n_samples = sum(1 for c in non_ambig_llr_count if c > 0)
-        
-        n_reads = [len(sample_reads[k]) for k in label_list]
+        overall_bs_list = [pos / total for pos, total in zip(pos_count, non_ambig_llr_count) if total > 0]
         
         # Collect median llr
         med_llr_list = [np.median(llrs) for llrs in raw_llr_list]
         
-        # Evaluate median llr value
-        bs_list = [pos / total for pos, total in zip(pos_count, non_ambig_llr_count) if total > 0]
-        
-        neg_med = sum(med <= -self.min_diff_llr for med in med_llr_list)
-        pos_med = sum(med >= self.min_diff_llr for med in med_llr_list)
-        ambiguous_med = sum(-self.min_diff_llr <= med <= self.min_diff_llr for med in med_llr_list)
-        
-        counters_to_increase = []
+        if self.hypothesis == "llr_diff":
+            test_values = raw_llr_list
+        elif self.hypothesis == "bs_diff":
+            if self.pvalue_method == "paired":
+                test_values = self.compute_site_betascores(raw_pos_list, raw_llr_list)
+            else:
+                test_values = self.compute_read_betascores(raw_reads_list, raw_llr_list)
         
         if n_samples < self.min_samples:
             # Not enough samples
             comment = "Insufficient samples"
             pvalue = np.nan
-        elif np.min(avg_coverage) < self.min_num_reads_per_interval:
-            # Not enough reads in one of the samples
+        elif all(len(vals) < 3 for vals in test_values) and self.pvalue_method == "paired":
             comment = "Insufficient coverage"
             pvalue = np.nan
         # Sufficient samples and effect size
-        elif np.max(bs_list) - np.min(bs_list) < self.min_diff_bs:
-            comment = "Insufficient effect size"
-            pvalue = np.nan
-        
-        # Sufficient samples and effect size
         else:
             comment = "Valid"
-            # Run stat test
-            if self.pvalue_method == "KW":
-                statistics, pvalue = kruskal(*raw_llr_list)
-            elif self.pvalue_method == "MW":
-                statistics, pvalue = mannwhitneyu(raw_llr_list[0], raw_llr_list[1])
-            
-            # Fix and categorize p-values
-            if pvalue is np.nan or pvalue is None or pvalue > 1 or pvalue < 0:
-                counters_to_increase.append("Sites with invalid pvalue")
-            
-            # Correct very low pvalues to minimal float size
-            elif pvalue == 0:
-                pvalue = self.min_pval
         
         # Update counters result table
         counters_to_increase.append(comment)
         
-        res = OrderedDict()
-        res["chromosome"] = interval.chr_name
-        res["start"] = interval.start
-        res["end"] = interval.end
-        res["pvalue"] = pvalue
-        res["adj_pvalue"] = np.nan
-        res["n_samples"] = n_samples
-        res["neg_med"] = neg_med
-        res["pos_med"] = pos_med
-        res["ambiguous_med"] = ambiguous_med
-        res["label_list"] = list_to_str(label_list)
-        res["med_llr_list"] = list_to_str(med_llr_list)
-        res["raw_llr_list"] = list_to_str(raw_llr_list)
-        res["comment"] = comment
-        res["raw_pos_list"] = list_to_str(raw_pos_list)
-        res["avg_coverage"] = list_to_str(avg_coverage)
-        res["unique_cpg_pos"] = len(set(itertools.chain.from_iterable(raw_pos_list)))
+        if len(overall_bs_list) > 0:
+            difference = np.diff(overall_bs_list)
+        else:
+            difference = []
+        
+        if comment == "Valid":
+            try:
+                # Run stat test
+                if self.pvalue_method == "KW":
+                    statistics, pvalue = kruskal(*test_values)
+                elif self.pvalue_method == "MW":
+                    statistics, pvalue = mannwhitneyu(test_values[0], test_values[1], alternative="two-sided")
+                elif self.pvalue_method == "paired":
+                    statistics, pvalue = wilcoxon(test_values[0], test_values[1])
+            except ValueError:
+                # This happens for example if all values are equal in mannwhitneyu
+                pvalue = 1
+            
+            # Fix and categorize p-values
+            if pvalue is np.nan or pvalue is None or pvalue > 1 or pvalue < 0:
+                counters_to_increase.append("Sites with invalid pvalue")
+            # Correct very low pvalues to minimal float size
+            elif pvalue == 0:
+                pvalue = self.min_pval
+            
+            # Compute statistic used for independent hypothesis weighting
+            if self.do_independent_hypothesis_weighting:
+                ihw_weight = self.compute_ihw_weight(test_values)
+            
+            res["pvalue"] = pvalue
+            res["adj_pvalue"] = np.nan
+            res["n_samples"] = n_samples
+            if self.do_independent_hypothesis_weighting:
+                res["ihw_weight"] = ihw_weight
+            res["label_list"] = list_to_str(label_list)
+            res["med_llr_list"] = list_to_str(med_llr_list)
+            res["raw_llr_list"] = list_to_str(raw_llr_list)
+            res["difference"] = difference
+            res["comment"] = comment
+            res["raw_pos_list"] = list_to_str(raw_pos_list)
+            res["avg_coverage"] = list_to_str(avg_coverage)
+            res["unique_cpg_pos"] = len(set(itertools.chain.from_iterable(raw_pos_list)))
+        else:
+            res["pvalue"] = np.nan
+            res["adj_pvalue"] = np.nan
+            res["n_samples"] = 0
+            if self.do_independent_hypothesis_weighting:
+                res["ihw_weight"] = 0.0
+            res["label_list"] = "[]"
+            res["med_llr_list"] = "[]"
+            res["raw_llr_list"] = "[]"
+            res["comment"] = comment
+            res["difference"] = []
+            res["raw_pos_list"] = "[]"
+            res["avg_coverage"] = "[]"
+            res["unique_cpg_pos"] = "[]"
         
         return res, counters_to_increase
     
@@ -162,28 +264,43 @@ class MethCompWorker:
         sample_llrs = {}
         sample_pos = {}
         sample_reads = {}
-        
-        for sample_id, hf in self.sample_hf_files.items():
-            chrom_container = hf[interval.chr_name]
-            interval_container = chrom_container.get_values_in_range(interval.start, interval.end)
+        try:
+            for sample_id, hf in self.sample_hf_files.items():
+                chrom_container = hf[interval.chr_name]
+                interval_container = chrom_container.get_values_in_range(interval.start, interval.end)
+                
+                if interval_container is None:
+                    continue
+                llrs = interval_container.get_llrs()[:]
+                pos = interval_container.get_ranges()[:, 0]
+                read_names = interval_container.get_read_ids()[:]
+                
+                if self.h5_read_groups_key is not None:
+                    read_samples = interval_container.get_read_groups(self.h5_read_groups_key)
+                    mask = [rs == sample_id for rs in read_samples]
+                    llrs = llrs[mask]
+                    pos = pos[mask]
+                    read_names = read_names[mask]
+                
+                sample_llrs[sample_id] = llrs.tolist()
+                sample_pos[sample_id] = pos.tolist()
+                sample_reads[sample_id] = read_names.tolist()
             
-            if interval_container is None:
-                continue
-            llrs = interval_container.get_llrs()[:]
-            pos = interval_container.get_ranges()[:, 0]
-            read_names = interval_container.get_read_ids()[:]
+            # Remove samples for which there is no data
+            label_list = list([k for k in sample_llrs.keys() if len(sample_llrs[k]) > 0])
+            raw_llr_list = [sample_llrs[k] for k in label_list]
+            raw_pos_list = [sample_pos[k] for k in label_list]
+            raw_read_list = [sample_reads[k] for k in label_list]
+            if len(raw_pos_list) > 1 and self.do_filter_non_overlapping_sites:
+                raw_pos_list, raw_llr_list, raw_read_list = self.filter_non_overlapping_sites(
+                    raw_pos_list, raw_llr_list, raw_read_list
+                )
+            return self.compute_pvalue(interval, label_list, raw_llr_list, raw_pos_list, raw_read_list)
+        except:
+            import traceback
             
-            if self.h5_read_groups_key is not None:
-                read_samples = interval_container.get_read_groups(self.h5_read_groups_key)
-                mask = [rs == sample_id for rs in read_samples]
-                llrs = llrs[mask]
-                pos = pos[mask]
-                read_names = read_names[mask]
-            sample_llrs[sample_id] = llrs.tolist()
-            sample_pos[sample_id] = pos.tolist()
-            sample_reads[sample_id] = list(set(read_names))
-        
-        return self.compute_pvalue(interval, sample_llrs, sample_pos, sample_reads)
+            print(traceback.format_exc())
+            raise
 
 
 def initializer(**args):
@@ -200,7 +317,7 @@ def worker_function(*args):
     return worker(*args)
 
 
-def read_sample_ids_from_read_groups(h5_file_list, read_group_key):
+def read_sample_ids_from_read_groups(h5_file_list, read_group_key, labels=None):
     rg_dict = {}
     for fn in h5_file_list:
         with MetH5File(fn, "r") as f:
@@ -209,7 +326,10 @@ def read_sample_ids_from_read_groups(h5_file_list, read_group_key):
                 if k in rg_dict and rg_dict[k] != v:
                     raise pycoMethError("Read groups in meth5 files must have the same encoding")
             rg_dict.update(f_rg_dict)
-    return [k for k in rg_dict]
+    if labels is not None:
+        return [k for k,v in rg_dict.items() if v in labels]
+    else:
+        return [k for k in rg_dict]
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~CpG_Comp MAIN CLASS~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -218,7 +338,7 @@ def read_sample_ids_from_read_groups(h5_file_list, read_group_key):
 def Meth_Comp(
     h5_file_list: [str],
     ref_fasta_fn: str,
-    read_groups_key: str = None,
+    read_group_key: str = None,
     interval_bed_fn: str = None,
     output_bed_fn: str = None,
     output_tsv_fn: str = None,
@@ -233,7 +353,10 @@ def Meth_Comp(
     verbose: bool = False,
     quiet: bool = False,
     progress: bool = False,
+    paired_test: bool = False,
     worker_processes: int = 4,
+    hypothesis: str = "bs_diff",
+    do_independent_hypothesis_weighting: bool = False,
     **kwargs,
 ):
     """Compare methylation values for each CpG positions or intervals
@@ -246,7 +369,7 @@ def Meth_Comp(
 
      * h5_file_list
          A list of MetH5 files containing methylation llr
-     * read_groups_key
+     * read_group_key
          Key in h5 file containing read groups to be used. (optional)
      * ref_fasta_fn
          Reference file used for alignment in Fasta format (ideally already indexed with samtools faidx)
@@ -272,10 +395,16 @@ def Meth_Comp(
          Method to use for pValue multiple test adjustment
      * pvalue_threshold
          Alpha parameter (family-wise error rate) for pValue adjustment
+     * paired_test
+         Test with a paired test on beta scores instead of unpaired on llrs
      * only_tested_sites
          Do not include sites that were not tested because of insufficient samples or effect size in the report
      * worker_processes
          Number of processes to be launched
+     * hypothesis
+        "llr_diff" if the hypotheis is a shift in llrs, "bs_diff" if the hypothesis is a shift in mean read methylation rate
+     * do_independent_hypothesis_weighting
+         Whether to include independent hypothesis weighting in the p-value adjustment
     """
     # Init method
     opt_summary_dict = opt_summary(local_opt=locals())
@@ -291,15 +420,16 @@ def Meth_Comp(
         raise pycoMethError("At least 1 output file is requires (-t or -b)")
     
     if sample_id_list is None:
-        if read_groups_key is None:
+        if read_group_key is None:
             # If no sample id list is provided and no read group key is set
             # automatically define tests and maximal missing samples depending on number of files to compare
             sample_id_list = list(range(len(h5_file_list)))
         else:
-            sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_groups_key)
-    elif read_groups_key is not None:
+            sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_group_key)
+    elif read_group_key is not None:
         # H5 file stores groups as int
-        sample_id_list = [int(s) for s in sample_id_list]
+        sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_group_key, sample_id_list)
+        
     all_samples = len(sample_id_list)
     
     min_samples = all_samples - max_missing
@@ -333,11 +463,15 @@ def Meth_Comp(
             min_samples = 3
     # 2 values = Mann_Withney test
     elif all_samples == 2:
-        pvalue_method = "MW"
-        log.debug("Pairwise comparison mode (Mann_Withney test)")
         if min_samples:
             log.debug("No missing samples allowed for 2 samples comparison")
             min_samples = 2
+        if paired_test:
+            pvalue_method = "paired"
+            log.debug("Paired comparison mode (Wilcoxon)")
+        else:
+            pvalue_method = "MW"
+            log.debug("Pairwise comparison mode (Mann_Withney test)")
     else:
         raise pycoMethError("Meth_Comp needs at least 2 input files")
     
@@ -348,6 +482,7 @@ def Meth_Comp(
             pvalue_adj_method=pvalue_adj_method,
             pvalue_threshold=pvalue_threshold,
             only_tested_sites=only_tested_sites,
+            do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
         )
         
         log.info("Starting asynchronous file parsing")
@@ -364,13 +499,15 @@ def Meth_Comp(
             pool = Pool(
                 worker_processes,
                 initializer=lambda: initializer(
-                    h5_read_groups_key=read_groups_key,
+                    h5_read_groups_key=read_group_key,
                     sample_id_list=sample_id_list,
                     h5_file_list=h5_file_list,
                     min_diff_llr=min_diff_llr,
                     min_samples=min_samples,
                     pvalue_method=pvalue_method,
                     min_num_reads_per_interval=min_num_reads_per_interval,
+                    hypothesis=hypothesis,
+                    do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
                 ),
             )
             
@@ -383,6 +520,8 @@ def Meth_Comp(
                 bed_fn=output_bed_fn,
                 tsv_fn=output_tsv_fn,
                 verbose=verbose,
+                output_raw_lists=False,  # TODO EXPOSE
+                with_ihw_weight=do_independent_hypothesis_weighting,
             ) as writer:
                 
                 def callback(*args):
@@ -449,12 +588,14 @@ class StatsResults:
         pvalue_adj_method="fdr_bh",
         pvalue_threshold=0.01,
         only_tested_sites=False,
+        do_independent_hypothesis_weighting=True,
     ):
         """"""
         # Save self variables
         self.pvalue_adj_method = pvalue_adj_method
         self.pvalue_threshold = pvalue_threshold
         self.only_tested_sites = only_tested_sites
+        self.do_independent_hypothesis_weighting = do_independent_hypothesis_weighting
         
         # Init self collections
         self.res_list = []
@@ -490,6 +631,8 @@ class StatsResults:
             "adj_pvalue": res["adj_pvalue"],
             "comment": res["comment"],
         }
+        if "ihw_weight" in res:
+            reduced_res["ihw_weight"] = res["ihw_weight"]
         self.res_list.append(reduced_res)
         
         return res
@@ -499,16 +642,28 @@ class StatsResults:
         # Collect non-nan pvalues
         pvalue_idx = []
         pvalue_list = []
+        ihw_weight_list = []
+        
         for i, res in enumerate(self.res_list):
             if not np.isnan(res["pvalue"]):
                 pvalue_idx.append(i)
                 pvalue_list.append(res["pvalue"])
-            else:
-                pvalue_idx.append(i)
-                pvalue_list.append(1.0)
+                if self.do_independent_hypothesis_weighting:
+                    ihw_weight_list.append(res["ihw_weight"])
         
-        print(pvalue_list)
         # Adjust values
+        if len(pvalue_list) == 0:
+            return
+        
+        if self.do_independent_hypothesis_weighting:
+            # Re-center weights (must average to 1) and is most faithful to FDR if scaled between 0 and 2
+            mean_weight = sum(ihw_weight_list) / len(ihw_weight_list)
+            ihw_weight_list = [w - mean_weight for w in ihw_weight_list]
+            min_weight = max(abs(min(ihw_weight_list)), 0.01)
+            ihw_weight_list = [max(w/min_weight + 1, 0.01) for w in ihw_weight_list]
+            # Weight p-values
+            pvalue_list = [p / w for p, w in zip(pvalue_list, ihw_weight_list)]
+        
         adj_pvalue_list = multipletests(
             pvals=pvalue_list,
             alpha=self.pvalue_threshold,
@@ -545,11 +700,13 @@ class StatsResults:
 class Comp_Writer:
     """Extract data for valid sites and write to BED and/or TSV file."""
     
-    def __init__(self, bed_fn=None, tsv_fn=None, verbose=True):
+    def __init__(self, bed_fn=None, tsv_fn=None, verbose=True, output_raw_lists=False, with_ihw_weight=False):
         """"""
         self.log = get_logger(name="Comp_Writer", verbose=verbose)
         self.bed_fn = bed_fn
         self.tsv_fn = tsv_fn
+        self.output_raw_lists = output_raw_lists
+        self.with_ihw_weight = with_ihw_weight
         
         # Init file pointers
         self.bed_fp = self._init_bed() if bed_fn else None
@@ -644,14 +801,16 @@ class Comp_Writer:
             "n_samples",
             "pvalue",
             "adj_pvalue",
-            "neg_med",
-            "pos_med",
-            "ambiguous_med",
             "unique_cpg_pos",
             "labels",
             "med_llr_list",
-            "raw_llr_list",
-            "raw_pos_list",
+            "difference",
+        ]
+        if self.output_raw_lists:
+            header = header + ["raw_llr_list", "raw_pos_list"]
+        if self.with_ihw_weight:
+            header = header + ["ihw_weight"]
+        header = header + [
             "avg_coverage",
             "comment",
         ]
@@ -668,14 +827,16 @@ class Comp_Writer:
             res["n_samples"],
             res["pvalue"],
             res["adj_pvalue"],
-            res["neg_med"],
-            res["pos_med"],
-            res["ambiguous_med"],
             res["unique_cpg_pos"],
             res["label_list"],
             res["med_llr_list"],
-            res["raw_llr_list"],
-            res["raw_pos_list"],
+            res["difference"],
+        ]
+        if self.output_raw_lists:
+            res_line = res_line + [res["raw_llr_list"], res["raw_pos_list"]]
+        if self.with_ihw_weight:
+            res_line = res_line + [res["ihw_weight"]]
+        res_line = res_line + [
             res["avg_coverage"],
             res["comment"],
         ]
