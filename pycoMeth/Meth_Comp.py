@@ -466,12 +466,68 @@ class StatsResults:
     def __iter__(self):
         for i in self.res_list:
             yield i
-    
-    # ~~~~~~~~~~~~~~PUBLIC METHODS~~~~~~~~~~~~~~#
-    
-    def callback(self, res, counters_to_increase):
-        # filter out non tested site if required
-        if self.only_tested_sites and res["pvalue"] is np.nan:
+
+    #~~~~~~~~~~~~~~PUBLIC METHODS~~~~~~~~~~~~~~#
+
+    def compute_pvalue (self, coord, line_list, label_list):
+        """"""
+
+        # Collect median llr
+        med_llr_list = []
+        raw_llr_list = []
+        raw_pos_list = []
+        n_samples = len(line_list)
+
+        # Evaluate median llr value
+        neg_med = pos_med = ambiguous_med = 0
+        for line in line_list:
+            if line.median_llr <= -self.min_diff_llr:
+                neg_med+=1
+            elif line.median_llr >= self.min_diff_llr:
+                pos_med+= 1
+            else:
+                ambiguous_med+=1
+
+        # Not enough samples
+        if n_samples < self.min_samples:
+            comment="Insufficient samples"
+            pvalue=np.nan
+
+        # Sufficient samples and effect size
+        elif not neg_med or not pos_med:
+            comment="Insufficient effect size"
+            pvalue=np.nan
+
+        # Sufficient samples and effect size
+        else:
+            comment="Valid"
+            # collect med_llr, raw_llr and raw_pos lists
+            for line in line_list:
+                med_llr_list.append(line.median_llr)
+                raw_llr_list.append(str_to_list(line.llr_list))
+                if self.input_type == "Interval_Aggregate":
+                    raw_pos_list.append(str_to_list(line.pos_list))
+
+            # Run stat test
+            if self.pvalue_method == "KW":
+                statistics, pvalue = kruskal(*raw_llr_list)
+            elif self.pvalue_method == "MW":
+                statistics, pvalue = mannwhitneyu(raw_llr_list[0], raw_llr_list[1])
+
+            # Fix and categorize p-values
+            if pvalue is np.nan or pvalue is None or pvalue>1 or pvalue<0:
+                pvalue = 1.0
+                self.counter["Sites with invalid pvalue"]+=1
+
+            # Correct very low pvalues to minimal float size
+            elif pvalue == 0:
+                pvalue = self.min_pval
+
+        # Update counters result table
+        self.counter[comment]+=1
+
+        # filter out non tested site is required
+        if self.only_tested_sites and pvalue is np.nan:
             return
         
         for c in counters_to_increase:
@@ -498,19 +554,18 @@ class StatsResults:
         
         # Adjust values
         adj_pvalue_list = multipletests(
-            pvals=pvalue_list,
-            alpha=self.pvalue_threshold,
-            method=self.pvalue_adj_method,
-        )[1]
-        
+            pvals = pvalue_list,
+            alpha = self.pvalue_threshold,
+            method = self.pvalue_adj_method)[1]
+
         # add adjusted values to appropriate category
         for i, adj_pvalue in zip(pvalue_idx, adj_pvalue_list):
-            
+
             # Fix and categorize p-values
-            if adj_pvalue is np.nan or adj_pvalue is None or adj_pvalue > 1 or adj_pvalue < 0:
+            if adj_pvalue is np.nan or adj_pvalue is None or adj_pvalue>1 or adj_pvalue<0:
                 adj_pvalue = 1.0
-                comment = "Non-significant pvalue"
-            
+                comment="Non-significant pvalue"
+
             elif adj_pvalue <= self.pvalue_threshold:
                 # Correct very low pvalues to minimal float size
                 if adj_pvalue == 0:
@@ -518,10 +573,10 @@ class StatsResults:
                 # update counter if pval is still significant after adjustment
                 comment = "Significant pvalue"
             else:
-                comment = "Non-significant pvalue"
-            
-            # update counters and update comment and adj p-value
-            self.counter[comment] += 1
+                comment= "Non-significant pvalue"
+
+            # update counters and update comment and adj pavalue
+            self.counter[comment]+=1
             self.res_list[i]["comment"] = comment
             self.res_list[i]["adj_pvalue"] = adj_pvalue
 

@@ -1047,21 +1047,31 @@ def tss_dist_plot(
 ):
     
     """Plot an ideogram of significant sites distribution per chromosome """
-    
-    sig_val = df["distance to tss"][df["pvalue"] <= pvalue_threshold].dropna()
-    non_sig_val = df["distance to tss"][df["pvalue"] > pvalue_threshold].dropna()
+
+    if df.empty:
+        return None
+
+    sig_val = df[df["pvalue"]<=pvalue_threshold].dropna()
+    non_sig_val = df[df["pvalue"]>pvalue_threshold].dropna()
+
     if sig_val.empty:
         return None
     
     if not non_sig_val.empty:
-        x_ns, y_ns = gaussian_hist(
-            val_list=non_sig_val, start=-max_distance, stop=max_distance, num=n_bins, smooth_sigma=smooth_sigma
-        )
-    
-    x_sig, y_sig = gaussian_hist(
-        val_list=sig_val, start=-max_distance, stop=max_distance, num=n_bins, smooth_sigma=smooth_sigma
-    )
-    
+        x_ns, y_ns = gaussian_hist (
+            val_list=non_sig_val["distance to tss"],
+            start=-max_distance,
+            stop=max_distance,
+            num=n_bins,
+            smooth_sigma=smooth_sigma)
+
+    x_sig, y_sig = gaussian_hist (
+        val_list=sig_val["distance to tss"],
+        start=-max_distance,
+        stop=max_distance,
+        num=n_bins,
+        smooth_sigma=smooth_sigma)
+
     fig = go.Figure()
     
     # Plot significant trace
