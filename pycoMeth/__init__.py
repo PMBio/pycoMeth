@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
 
 # Define self package variable
-__version__ = "0.4.15"
-__description__ = "DNA methylation analysis downstream to Nanopolish for Oxford Nanopore DNA sequencing datasets"
+__version__ = "2.0.0"
+__description__ = "Differential methylation calling suite for Nanopore methylation calls PycoMeth"

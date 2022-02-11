@@ -42,3 +42,4 @@ managed_files:
   versipy_templates/setup.py: setup.py
   versipy_templates/README.md: README.md
   versipy_templates/meta.yaml: meta.yaml
+  versipy_templates/pycoMeth/__init__.py: pycoMeth/__init__.py
