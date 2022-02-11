@@ -338,7 +338,7 @@ def read_sample_ids_from_read_groups(h5_file_list, read_group_key, labels=None):
 def Meth_Comp(
     h5_file_list: [str],
     ref_fasta_fn: str,
-    read_group_key: str = None,
+    read_groups_key: str = None,
     interval_bed_fn: str = None,
     output_bed_fn: str = None,
     output_tsv_fn: str = None,
@@ -369,7 +369,7 @@ def Meth_Comp(
 
      * h5_file_list
          A list of MetH5 files containing methylation llr
-     * read_group_key
+     * read_groups_key
          Key in h5 file containing read groups to be used. (optional)
      * ref_fasta_fn
          Reference file used for alignment in Fasta format (ideally already indexed with samtools faidx)
@@ -420,15 +420,15 @@ def Meth_Comp(
         raise pycoMethError("At least 1 output file is requires (-t or -b)")
     
     if sample_id_list is None:
-        if read_group_key is None:
+        if read_groups_key is None:
             # If no sample id list is provided and no read group key is set
             # automatically define tests and maximal missing samples depending on number of files to compare
             sample_id_list = list(range(len(h5_file_list)))
         else:
-            sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_group_key)
-    elif read_group_key is not None:
+            sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_groups_key)
+    elif read_groups_key is not None:
         # H5 file stores groups as int
-        sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_group_key, sample_id_list)
+        sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_groups_key, sample_id_list)
         
     all_samples = len(sample_id_list)
     
@@ -499,7 +499,7 @@ def Meth_Comp(
             pool = Pool(
                 worker_processes,
                 initializer=lambda: initializer(
-                    h5_read_groups_key=read_group_key,
+                    h5_read_groups_key=read_groups_key,
                     sample_id_list=sample_id_list,
                     h5_file_list=h5_file_list,
                     min_diff_llr=min_diff_llr,
