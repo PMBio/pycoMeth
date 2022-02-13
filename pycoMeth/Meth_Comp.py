@@ -22,6 +22,7 @@ from meth5.meth5 import MetH5File
 from pycoMeth.common import *
 from pycoMeth.FileParser import FileParser
 from pycoMeth.CoordGen import CoordGen, Coord
+from pycoMeth.loader import MetH5Loader
 
 # ~~~~~~~~~~~~~~~~~ Multiprocessing Worker methods ~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
@@ -39,7 +40,6 @@ class MethCompWorker:
         hypothesis,
         do_independent_hypothesis_weighting,
     ):
-        self.h5_read_groups_key = h5_read_groups_key
         self.min_diff_llr = min_diff_llr
         self.min_samples = min_samples
         self.pvalue_method = pvalue_method
@@ -48,30 +48,15 @@ class MethCompWorker:
         self.sample_hf_files: Dict[str, MetH5File] = {}
         self.llr_threshold = 2.0  # TODO expose parameter
         self.min_diff_bs = 0.25  # TODO expose parameter
-        self.do_filter_non_overlapping_sites = False  # TODO expose parameter
         self.hypothesis = hypothesis
         self.do_independent_hypothesis_weighting = do_independent_hypothesis_weighting
         
-        if h5_read_groups_key is None:
-            for sample_id, h5_file in zip(sample_id_list, h5_file_list):
-                hf = MetH5File(h5_file, "r")
-                self.sample_hf_files[sample_id] = hf
-        else:
-            hf = MetH5File(h5_file_list[0], "r")
-            for sample_id in sample_id_list:
-                self.sample_hf_files[sample_id] = hf
-    
-    def __del__(self):
-        for hf in self.sample_hf_files.values():
-            try:
-                hf.close()
-            except:
-                pass
+        self.loader = MetH5Loader(h5_read_groups_key, sample_id_list, h5_file_list)
     
     def compute_ihw_weight(self, test_values: List[List[float]]) -> float:
         flat_list = [v for vl in test_values for v in vl]
         mean = sum(flat_list) / len(flat_list)
-        variance = sum((v - mean)**2 for v in flat_list)  / (len(flat_list)-1)
+        variance = sum((v - mean) ** 2 for v in flat_list) / (len(flat_list) - 1)
         std = sqrt(variance)
         return std
     
@@ -140,30 +125,6 @@ class MethCompWorker:
             bs_list.append(bs)
         return bs_list
     
-    def filter_non_overlapping_sites(self, raw_pos_list, raw_llr_list, raw_read_list):
-        def create_pos_intersection(left: set, it):
-            try:
-                ret = left.intersection(set(next(it)))
-                ret = create_pos_intersection(ret, it)
-                return ret
-            except StopIteration:
-                return left
-        
-        pos_intersection = create_pos_intersection(set(raw_pos_list[0]), iter(raw_pos_list[1:]))
-        pos_intersection_index = [[pos in pos_intersection for pos in sample_pos] for sample_pos in raw_pos_list]
-        
-        def filter(l):
-            return [
-                [l[i, j] for j in range(len(pos_intersection_index[i])) if pos_intersection_index[i][j]]
-                for i in range(len(pos_intersection_index))
-            ]
-        
-        raw_pos_list = filter(raw_pos_list)
-        raw_llr_list = filter(raw_llr_list)
-        raw_read_list = filter(raw_read_list)
-        
-        return raw_pos_list, raw_llr_list, raw_read_list
-    
     def compute_pvalue(self, interval, label_list, raw_llr_list, raw_pos_list, raw_reads_list):
         counters_to_increase = []
         res = OrderedDict()
@@ -200,12 +161,11 @@ class MethCompWorker:
         
         # Update counters result table
         counters_to_increase.append(comment)
-        
+
         if len(overall_bs_list) > 0:
-            difference = np.diff(overall_bs_list)
+            difference = np.diff(overall_bs_list).tolist()
         else:
             difference = []
-        
         if comment == "Valid":
             try:
                 # Run stat test
@@ -238,7 +198,7 @@ class MethCompWorker:
             res["label_list"] = list_to_str(label_list)
             res["med_llr_list"] = list_to_str(med_llr_list)
             res["raw_llr_list"] = list_to_str(raw_llr_list)
-            res["difference"] = difference
+            res["difference"] = list_to_str(difference)
             res["comment"] = comment
             res["raw_pos_list"] = list_to_str(raw_pos_list)
             res["avg_coverage"] = list_to_str(avg_coverage)
@@ -261,40 +221,8 @@ class MethCompWorker:
         return res, counters_to_increase
     
     def __call__(self, interval):
-        sample_llrs = {}
-        sample_pos = {}
-        sample_reads = {}
         try:
-            for sample_id, hf in self.sample_hf_files.items():
-                chrom_container = hf[interval.chr_name]
-                interval_container = chrom_container.get_values_in_range(interval.start, interval.end)
-                
-                if interval_container is None:
-                    continue
-                llrs = interval_container.get_llrs()[:]
-                pos = interval_container.get_ranges()[:, 0]
-                read_names = interval_container.get_read_ids()[:]
-                
-                if self.h5_read_groups_key is not None:
-                    read_samples = interval_container.get_read_groups(self.h5_read_groups_key)
-                    mask = [rs == sample_id for rs in read_samples]
-                    llrs = llrs[mask]
-                    pos = pos[mask]
-                    read_names = read_names[mask]
-                
-                sample_llrs[sample_id] = llrs.tolist()
-                sample_pos[sample_id] = pos.tolist()
-                sample_reads[sample_id] = read_names.tolist()
-            
-            # Remove samples for which there is no data
-            label_list = list([k for k in sample_llrs.keys() if len(sample_llrs[k]) > 0])
-            raw_llr_list = [sample_llrs[k] for k in label_list]
-            raw_pos_list = [sample_pos[k] for k in label_list]
-            raw_read_list = [sample_reads[k] for k in label_list]
-            if len(raw_pos_list) > 1 and self.do_filter_non_overlapping_sites:
-                raw_pos_list, raw_llr_list, raw_read_list = self.filter_non_overlapping_sites(
-                    raw_pos_list, raw_llr_list, raw_read_list
-                )
+            label_list, raw_llr_list, raw_pos_list, raw_read_list = self.loader.read_raw_llrs(interval)
             return self.compute_pvalue(interval, label_list, raw_llr_list, raw_pos_list, raw_read_list)
         except:
             import traceback
@@ -315,21 +243,6 @@ def worker_function(*args):
     """Calls the work function of the worker object in the global
     namespace."""
     return worker(*args)
-
-
-def read_sample_ids_from_read_groups(h5_file_list, read_group_key, labels=None):
-    rg_dict = {}
-    for fn in h5_file_list:
-        with MetH5File(fn, "r") as f:
-            f_rg_dict = f.get_all_read_groups(read_group_key)
-            for k, v in f_rg_dict.items():
-                if k in rg_dict and rg_dict[k] != v:
-                    raise pycoMethError("Read groups in meth5 files must have the same encoding")
-            rg_dict.update(f_rg_dict)
-    if labels is not None:
-        return [k for k,v in rg_dict.items() if v in labels]
-    else:
-        return [k for k in rg_dict]
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~CpG_Comp MAIN CLASS~~~~~~~~~~~~~~~~~~~~~~~~#
@@ -357,6 +270,7 @@ def Meth_Comp(
     worker_processes: int = 4,
     hypothesis: str = "bs_diff",
     do_independent_hypothesis_weighting: bool = False,
+    no_raw_llrs_output=True,
     **kwargs,
 ):
     """Compare methylation values for each CpG positions or intervals
@@ -419,17 +333,8 @@ def Meth_Comp(
     if not output_bed_fn and not output_tsv_fn:
         raise pycoMethError("At least 1 output file is requires (-t or -b)")
     
-    if sample_id_list is None:
-        if read_groups_key is None:
-            # If no sample id list is provided and no read group key is set
-            # automatically define tests and maximal missing samples depending on number of files to compare
-            sample_id_list = list(range(len(h5_file_list)))
-        else:
-            sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_groups_key)
-    elif read_groups_key is not None:
-        # H5 file stores groups as int
-        sample_id_list = read_sample_ids_from_read_groups(h5_file_list, read_groups_key, sample_id_list)
-        
+    sample_id_list = MetH5Loader.interpret_sample_ids_from_arguments(sample_id_list, read_groups_key, h5_file_list)
+    
     all_samples = len(sample_id_list)
     
     min_samples = all_samples - max_missing
@@ -520,7 +425,7 @@ def Meth_Comp(
                 bed_fn=output_bed_fn,
                 tsv_fn=output_tsv_fn,
                 verbose=verbose,
-                output_raw_lists=False,  # TODO EXPOSE
+                output_raw_lists=False,
                 with_ihw_weight=do_independent_hypothesis_weighting,
             ) as writer:
                 
@@ -660,7 +565,7 @@ class StatsResults:
             mean_weight = sum(ihw_weight_list) / len(ihw_weight_list)
             ihw_weight_list = [w - mean_weight for w in ihw_weight_list]
             min_weight = max(abs(min(ihw_weight_list)), 0.01)
-            ihw_weight_list = [max(w/min_weight + 1, 0.01) for w in ihw_weight_list]
+            ihw_weight_list = [max(w / min_weight + 1, 0.01) for w in ihw_weight_list]
             # Weight p-values
             pvalue_list = [p / w for p, w in zip(pvalue_list, ihw_weight_list)]
         
