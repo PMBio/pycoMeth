@@ -29,20 +29,21 @@ setup(
         "Programming Language :: Python :: 3"
     ],
     install_requires=[
-        "numpy>=1.14.0",
+        "numpy>=1.19.2",
         "scipy==1.4.1",
         "statsmodels>=0.11.1",
-        "pandas>=1.0.3",
+        "pandas>=1.1.3",
         "Jinja2>=2.11.1",
         "plotly>=4.7.1",
         "pyfaidx>=0.5.8",
-        "tqdm>=4.45.0",
+        "tqdm>=4.60.0",
         "colorlog>=4.1.0",
         "nbformat>=4.2.0",
+        "meth5==1.0.0",
         "kaleido"
     ],
-    packages=["pycoMeth", "pycoMeth.meth_seg"],
-    package_dir={"pycoMeth": "pycoMeth", "pycoMeth.meth_seg":"pycoMeth/meth_seg"},
+    packages=[name],
+    package_dir={name: name},
     package_data={name: ["templates/*"]},
     entry_points={"console_scripts": ["pycoMeth=pycoMeth.__main__:main"]},
 )
