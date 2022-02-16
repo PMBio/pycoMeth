@@ -11,7 +11,7 @@
 [![Anaconda Downloads](https://anaconda.org/aleg/pycometh/badges/downloads.svg)](https://anaconda.org/aleg/pycometh)
 
 ---
-Version in this branch: 2.0.0
+Version in this branch: 2.0.1
 
 ---
 
