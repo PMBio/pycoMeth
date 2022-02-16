@@ -12,6 +12,7 @@ from pycoMeth.common import *
 from pycoMeth.Meth_Comp import Meth_Comp
 from pycoMeth.CGI_Finder import CGI_Finder
 from pycoMeth.Comp_Report import Comp_Report
+from pycoMeth.Meth_Seg import Meth_Seg
 
 # ~~~~~~~~~~~~~~TOP LEVEL ENTRY POINT~~~~~~~~~~~~~~#
 def main(args=None):
@@ -82,7 +83,25 @@ def main(args=None):
     arg_from_docstr(sp_cgi_ms, f, "min_win_len", "w")
     arg_from_docstr(sp_cgi_ms, f, "min_CG_freq", "c")
     arg_from_docstr(sp_cgi_ms, f, "min_obs_CG_ratio", "r")
-    
+
+    # Meth_Seg subparser
+    f = Meth_Seg
+    sp_seg = subparsers.add_parser("Meth_Seg", description=doc_func(f))
+    sp_seg.set_defaults(func=f)
+    sp_seg_io = sp_seg.add_argument_group("Input/Output options")
+    arg_from_docstr(sp_seg_io, f, "h5_file_list", "i")
+    arg_from_docstr(sp_seg_io, f, "chromosome", "c")
+    arg_from_docstr(sp_seg_io, f, "chunks", "n")
+    arg_from_docstr(sp_seg_io, f, "output_tsv_fn", "t")
+    arg_from_docstr(sp_seg_io, f, "read_groups_keys", "r")
+    arg_from_docstr(sp_seg_io, f, "chunk_size")
+    sp_seg_ms = sp_seg.add_argument_group("Misc options")
+    arg_from_docstr(sp_seg_ms, f, "max_segments_per_window", "m")
+    arg_from_docstr(sp_seg_ms, f, "workers", "p")
+    arg_from_docstr(sp_seg_ms, f, "reader_workers")
+    arg_from_docstr(sp_seg_ms, f, "window_size", "w")
+    arg_from_docstr(sp_seg_ms, f, "print_diff_met")
+
     # Add common group parsers
     for sp in [sp_met, sp_cr, sp_cgi]:
         sp_vb = sp.add_argument_group("Verbosity options")
