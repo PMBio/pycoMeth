@@ -41,8 +41,8 @@ setup(
         "nbformat>=4.2.0",
         "kaleido"
     ],
-    packages=[name],
-    package_dir={name: name},
+    packages=["pycoMeth", "pycoMeth.meth_seg"],
+    package_dir={"pycoMeth": "pycoMeth", "pycoMeth.meth_seg":"pycoMeth/meth_seg"},
     package_data={name: ["templates/*"]},
     entry_points={"console_scripts": ["pycoMeth=pycoMeth.__main__:main"]},
 )

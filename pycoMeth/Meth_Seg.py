@@ -16,9 +16,10 @@ from pycoMeth.meth_seg.hmm import SegmentationHMM
 from pycoMeth.meth_seg.postprocessing import cleanup_segmentation
 from pycoMeth.meth_seg.segments_csv_io import SegmentsWriterBED
 from pycoMeth.meth_seg.math import llr_to_p
+from pycoMeth.meth_seg.segment import segment
 
 
-def worker_segment(input_queue: Queue, output_queue: Queue, chromosome: str, max_segments_per_window: int):
+def worker_segment(input_queue: Queue, output_queue: Queue, max_segments_per_window: int):
     import warnings
     
     warnings.filterwarnings("ignore")
@@ -113,10 +114,6 @@ def worker_reader(
                 window_end = window_start + window_size
                 # logging.debug(f"Submitting window {window_start}-{window_end}")
                 sub_matrix = met_matrix.get_submatrix(window_start, window_end)
-                print(
-                    f"Submitting window {sub_matrix.get_genomic_region()} with dimensions "
-                    f"{sub_matrix.met_matrix.shape}"
-                )
                 input_queue.put((sub_matrix, progress_per_window))
 
 
@@ -134,17 +131,17 @@ def validate_chunk_selection(m5file: Path, chromosome: str, chunk_size: int, chu
 
 
 def Meth_Seg(
-    h5_file_list: List[Path],
-    out_tsv: IO,
+    h5_file_list: [Path],
+    output_tsv_fn: str,
     chromosome: str,
     chunk_size: int = int(5e4),
-    chunks: Optional[Iterable[int]] = None,
+    chunks: [int] = None,
     workers: int = 1,
     reader_workers: int = 1,
     progress: bool = False,
     window_size: int = 300,
     max_segments_per_window: int = 10,
-    read_groups_keys: List[str] = None,
+    read_groups_keys: [str] = None,
     print_diff_met: bool = False,
     **kwargs,
 ):
@@ -165,7 +162,7 @@ def Meth_Seg(
         Number of reader worker processes
     * progress
         True if  progress bar is desired
-    * out_tsv
+    * output_tsv_fn
         Output TSV file
     * window_size
         Window size for segmentation in number of CpG calling sites. Default: 300.
@@ -182,10 +179,10 @@ def Meth_Seg(
     input_queue = Queue(maxsize=workers * 5)
     output_queue = Queue(maxsize=workers * 100)
     
-    for m5file in m5files:
+    for m5file in h5_file_list:
         validate_chromosome_selection(m5file, chromosome, chunk_size)
     
-    firstm5 = m5files[0]
+    firstm5 = h5_file_list[0]
     if chunks is None:
         # No chunks have been provided, take all
         with MetH5File(firstm5, mode="r", chunk_size=chunk_size) as f:
@@ -211,7 +208,7 @@ def Meth_Seg(
         Process(
             target=worker_reader,
             args=(
-                m5files,
+                h5_file_list,
                 chunk_size,
                 chromosome,
                 window_size,
@@ -227,7 +224,7 @@ def Meth_Seg(
         p.start()
     
     output_process = Process(
-        target=worker_output, args=(output_queue, out_tsv, chromosome, read_groups_keys, print_diff_met, not progress)
+        target=worker_output, args=(output_queue, output_tsv_fn, chromosome, read_groups_keys, print_diff_met, not progress)
     )
     output_process.start()
     
