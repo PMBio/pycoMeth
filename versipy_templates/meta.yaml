@@ -41,6 +41,6 @@ test:
     - pycoMeth CGI_Finder --help
 
 about:
-  home: "https://github.com/a-slide/pycoMeth"
+  home: "__package_url__"
   license: "GPL"
   summary: "DNA methylation analysis for Oxford Nanopore DNA sequencing datasets downstream to Nanopolish"

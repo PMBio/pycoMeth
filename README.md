@@ -27,6 +27,17 @@ methylated intervals/islands can also generated at the end of the analysis.
 Please be aware that `pycoMeth` is a research package that is still under development. The API, command line interface, and implementation might change without retro-compatibility.
 
 ---
+### Installation
+
+Install either using conda:
+
+    conda install -c snajder-r -c bioconda pycometh
+
+Or using pip:
+    
+    pip install pycometh
+
+---
 
 ### pycoMeth workflow
 
