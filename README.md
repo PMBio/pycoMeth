@@ -2,13 +2,13 @@
 
 [![GitHub license](https://img.shields.io/github/license/a-slide/pycoMeth.svg)](https://github.com/a-slide/pycoMeth/blob/master/LICENSE)
 [![Language](https://img.shields.io/badge/Language-Python3.7+-yellow.svg)](https://www.python.org/)
-[![DOI](https://zenodo.org/badge/211195001.svg)](https://zenodo.org/badge/latestdoi/211195001)
+[![DOI](https://img.shields.io/badge/DOI-10.1101%2F2022.02.16.480699-red)](https://www.biorxiv.org/content/10.1101/2022.02.16.480699v1)
 [![Build Status](https://travis-ci.com/a-slide/pycoMeth.svg?branch=master)](https://travis-ci.com/a-slide/pycoMeth)
 
 [![PyPI version](https://badge.fury.io/py/pycoMeth.svg)](https://badge.fury.io/py/pycoMeth)
 [![PyPI downloads](https://pepy.tech/badge/pycoMeth)](https://pepy.tech/project/pycoMeth)
-[![Anaconda Version](https://anaconda.org/aleg/pycometh/badges/version.svg)](https://anaconda.org/aleg/pycometh)
-[![Anaconda Downloads](https://anaconda.org/aleg/pycometh/badges/downloads.svg)](https://anaconda.org/aleg/pycometh)
+[![Anaconda Version](https://anaconda.org/snajder-r/pycometh/badges/version.svg)](https://anaconda.org/snajder-r/pycometh)
+[![Anaconda Downloads](https://anaconda.org/snajder-r/pycometh/badges/downloads.svg)](https://anaconda.org/snajder-r/pycometh)
 
 ---
 Version in this branch: 2.0.1

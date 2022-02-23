@@ -39,7 +39,7 @@ setup(
         "tqdm>=4.60.0",
         "colorlog>=4.1.0",
         "nbformat>=4.2.0",
-        "meth5>=1.0.0"
+        "meth5>=1.0.1"
     ],
     packages=["pycoMeth", "pycoMeth.meth_seg"],
     package_dir={"pycoMeth": "pycoMeth", "pycoMeth.meth_seg":"pycoMeth/meth_seg"},
