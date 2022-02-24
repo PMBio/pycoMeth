@@ -32,5 +32,5 @@ setup(
     packages=["pycoMeth", "pycoMeth.meth_seg"],
     package_dir={"pycoMeth": "pycoMeth", "pycoMeth.meth_seg":"pycoMeth/meth_seg"},
     package_data={name: ["templates/*"]},
-    entry_points={"console_scripts": ["pycoMeth=pycoMeth.__main__:main"]},
+    entry_points={"console_scripts": ["pycometh=pycoMeth.__main__:main", "pycoMeth=pycoMeth.__main__:main"]},
 )
