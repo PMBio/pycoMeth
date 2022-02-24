@@ -93,6 +93,7 @@ def main(args=None):
     arg_from_docstr(sp_seg_io, f, "chromosome", "c")
     arg_from_docstr(sp_seg_io, f, "chunks", "n")
     arg_from_docstr(sp_seg_io, f, "output_tsv_fn", "t")
+    arg_from_docstr(sp_seg_io, f, "output_bedgraph_fn", "b")
     arg_from_docstr(sp_seg_io, f, "read_groups_keys", "r")
     arg_from_docstr(sp_seg_io, f, "chunk_size")
     sp_seg_ms = sp_seg.add_argument_group("Misc options")

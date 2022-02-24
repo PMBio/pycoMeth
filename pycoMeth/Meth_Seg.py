@@ -14,7 +14,7 @@ from meth5.sparse_matrix import SparseMethylationMatrixContainer
 from pycoMeth.meth_seg.emissions import BernoulliPosterior
 from pycoMeth.meth_seg.hmm import SegmentationHMM
 from pycoMeth.meth_seg.postprocessing import cleanup_segmentation
-from pycoMeth.meth_seg.segments_csv_io import SegmentsWriterBED
+from pycoMeth.meth_seg.segments_csv_io import SegmentsWriterBED, SegmentsWriterBedGraph
 from pycoMeth.meth_seg.math import llr_to_p
 from pycoMeth.meth_seg.segment import segment
 
@@ -30,18 +30,44 @@ def worker_segment(input_queue: Queue, output_queue: Queue, max_segments_per_win
             break
         
         sparse_matrix, fraction = job
-        
         llrs = np.array(sparse_matrix.met_matrix.todense())
-        segmentation = segment(sparse_matrix, max_segments_per_window)
-        result_tuple = (llrs, segmentation, sparse_matrix.genomic_coord, sparse_matrix.read_samples)
+        
+        if sparse_matrix.shape[1] < -1:
+            # Too few CpG-sites. Nothing to segment.
+            segmentation = np.zeros(sparse_matrix.shape[1])
+            result_tuple = (
+                llrs,
+                segmentation,
+                sparse_matrix.genomic_coord,
+                sparse_matrix.genomic_coord_end,
+                sparse_matrix.read_samples,
+            )
+        else:
+            # Perform segmentation
+            segmentation = segment(sparse_matrix, max_segments_per_window)
+            result_tuple = (
+                llrs,
+                segmentation,
+                sparse_matrix.genomic_coord,
+                sparse_matrix.genomic_coord_end,
+                sparse_matrix.read_samples,
+            )
         
         output_queue.put((result_tuple, fraction))
 
 
 def worker_output(
-    output_queue: Queue, out_tsv_file: IO, chromosome: str, read_groups_keys: str, print_diff_met: bool, quiet: bool
+    output_queue: Queue,
+    out_tsv_file: IO,
+    out_bedgraph_filebase: str,
+    chromosome: str,
+    read_groups_keys: str,
+    print_diff_met: bool,
+    quiet: bool,
 ):
-    writer = SegmentsWriterBED(out_tsv_file, chromosome)
+    writers = [SegmentsWriterBED(out_tsv_file, chromosome)]
+    if out_bedgraph_filebase is not None:
+        writers.append(SegmentsWriterBedGraph(out_bedgraph_filebase, chromosome))
     with tqdm.tqdm(total=100) as pbar:
         while True:
             res = output_queue.get()
@@ -49,12 +75,10 @@ def worker_output(
                 break
             
             seg_result, fraction = res
-            llrs, segments, genomic_locations, samples = seg_result
+            llrs, segments, genomic_starts, genomic_ends, samples = seg_result
             
-            if read_groups_keys is None:
-                samples = None
-            
-            writer.write_segments_llr(llrs, segments, genomic_locations, samples, compute_diffmet=print_diff_met)
+            for writer in writers:
+                writer.write_segments_llr(llrs, segments, genomic_starts, genomic_ends, samples, compute_diffmet=print_diff_met)
             pbar.update(fraction)
         pbar.n = 100
         pbar.refresh()
@@ -112,7 +136,7 @@ def worker_reader(
             progress_per_window = progress_per_chunk / num_windows
             for window_start in range(0, total_sites + 1, window_size):
                 window_end = window_start + window_size
-                # logging.debug(f"Submitting window {window_start}-{window_end}")
+                logging.debug(f"Submitting window {window_start}-{window_end}")
                 sub_matrix = met_matrix.get_submatrix(window_start, window_end)
                 input_queue.put((sub_matrix, progress_per_window))
 
@@ -143,6 +167,7 @@ def Meth_Seg(
     max_segments_per_window: int = 10,
     read_groups_keys: [str] = None,
     print_diff_met: bool = False,
+    output_bedgraph_fn: str = None,
     **kwargs,
 ):
     """
@@ -174,6 +199,8 @@ def Meth_Seg(
         If read groups should be considered (e.g. haplotype) pass the read group key. You can provide more than one.
     * print_diff_met
         Whether output TSV file should contain methylation rate difference between samples
+    * output_bedgraph_fn
+        Base name for bedgraphs to be written. One bedgraph per sample/read_group will be created.
     """
     
     input_queue = Queue(maxsize=workers * 5)
@@ -224,7 +251,16 @@ def Meth_Seg(
         p.start()
     
     output_process = Process(
-        target=worker_output, args=(output_queue, output_tsv_fn, chromosome, read_groups_keys, print_diff_met, not progress)
+        target=worker_output,
+        args=(
+            output_queue,
+            output_tsv_fn,
+            output_bedgraph_fn,
+            chromosome,
+            read_groups_keys,
+            print_diff_met,
+            not progress,
+        ),
     )
     output_process.start()
     
