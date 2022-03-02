@@ -27,6 +27,16 @@ from pycoMeth.common import *
 from pycoMeth.loader import MetH5Loader
 from pycoMeth.CoordGen import Coord
 
+# ~~~~~~~~~~~~~~~~~~~~~~~~Helper Functions~~~~~~~~~~~~~~~~~~~~~~~~#
+
+
+def is_minimum_difference(min_diff, diff_string):
+    diff_list = str_to_list(diff_string)
+    # List of all difference inferred from np.diff result
+    all_diffs = (sum(diff_list[a:b]) for a in range(len(diff_list)) for b in range(a, len(diff_list) + 1))
+    return any(abs(diff) >= min_diff for diff in all_diffs)
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~Main Function~~~~~~~~~~~~~~~~~~~~~~~~#
 
 
@@ -147,8 +157,10 @@ def Comp_Report(
     
     # Select only sites with a valid pvalue
     valid_df = df.dropna(subset=["adj_pvalue"])
-
-    valid_df = valid_df.loc[valid_df["difference"].map(lambda difflist: any(abs(diff) > min_diff_bs for diff in eval(difflist)))].copy()
+    
+    valid_df = valid_df.loc[
+        valid_df["difference"].map(lambda diff_list: is_minimum_difference(min_diff_bs, diff_list))
+    ].copy()
     
     # Check number of valid pvalues
     sig_df = valid_df[valid_df.adj_pvalue <= pvalue_threshold]
