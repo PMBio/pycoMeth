@@ -161,7 +161,7 @@ class MethCompWorker:
         
         # Update counters result table
         counters_to_increase.append(comment)
-
+        
         if len(overall_bs_list) > 0:
             difference = np.diff(overall_bs_list).tolist()
         else:
@@ -774,6 +774,7 @@ class Comp_ReWriter:
     def write_adjusted_pvalues(self, res_list):
         for sep, filename in zip(self.separators, self.filenames):
             if filename is not None:
+                is_bed = filename.endswith("bed")
                 with fileinput.input(filename, inplace=True) as fi_fp:
                     for res, line in zip((None, *res_list), fi_fp):
                         line = line.strip()
@@ -782,9 +783,17 @@ class Comp_ReWriter:
                             print(line)
                         else:
                             updated_line = line.split(sep)
-                            updated_line[header["adj_pvalue"]] = str(res["adj_pvalue"])
-                            updated_line[header["comment"]] = res["comment"]
-                            print(sep.join(updated_line))
+                            if is_bed:
+                                if np.isnan(res["adj_pvalue"]) or res["adj_pvalue"] <= 0:
+                                    score = 0
+                                else:
+                                    score = int(-np.log10(res["adj_pvalue"]))
+                                
+                                updated_line[4] = score
+                            else:
+                                updated_line[header["adj_pvalue"]] = str(res["adj_pvalue"])
+                                updated_line[header["comment"]] = res["comment"]
+                                print(sep.join(updated_line))
 
 
 def read_readgroups_file(readgroups_file: IO):
