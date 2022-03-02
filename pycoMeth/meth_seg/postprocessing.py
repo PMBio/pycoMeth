@@ -16,8 +16,9 @@ def cleanup_segmentation(
     neighboring segments
     :return: a new segmentation of the same shape as segments
     """
+    
+    segment_p = np.exp(segment_p)
     new_segments = segments.copy()
-    lastx = 0
     for segment in sorted(list(set(segments))):
         if len(set(new_segments)) <= 1:
             # No need to go on if it's all just one segment
@@ -30,5 +31,6 @@ def cleanup_segmentation(
         absdif = np.abs(segment_p[:, segment] - segment_p[:, candidate_replace]).max()
         if length < min_length or absdif < min_parameter_diff:
             new_segments[new_segments == segment] = candidate_replace
-    
+            segment_p[:, segment] = np.mean([segment_p[:, segment], segment_p[:, candidate_replace]])
+            segment_p[:, candidate_replace] = segment_p[:, segment]
     return np.array(new_segments)

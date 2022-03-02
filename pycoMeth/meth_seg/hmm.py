@@ -274,11 +274,14 @@ class SegmentationHMM:
         """
         # Initial guess of parameters
         R = observations.shape[0]
+        N = observations.shape[1]
         
+        if N < 2:
+            raise ValueError("Observations must contain at least 2 CpG-sites")
         if any((observations != -1).sum(axis=0) == 0):
-            raise ValueError("Observations must not include reads with no " "observations")
+            raise ValueError("Observations must not include reads with zero observations")
         if any((observations != -1).sum(axis=1) == 0):
-            raise ValueError("Observations must not include sites with no " "observations")
+            raise ValueError("Observations must not include sites with zero observations")
         
         if samples is None:
             # No samples, then we use the identity
@@ -306,7 +309,6 @@ class SegmentationHMM:
                 bounds = self.e_fn.get_param_bounds()
                 
                 estimated_p = scipy.optimize.minimize(to_minimize, old_params, method="SLSQP", bounds=bounds).x
-                
                 segment_p_new[c] = np.log(estimated_p)
             
             diff = self.e_fn.update_params(segment_p_new)
