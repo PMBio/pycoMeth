@@ -13,7 +13,7 @@ with open("README.md", "r") as fh:
 setup(
     name=name,
     description="Differential methylation calling suite for Nanopore methylation calls PycoMeth",
-    version="2.1.0",
+    version="2.1.1",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/snajder-r/pycoMeth,",
