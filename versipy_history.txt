@@ -29,3 +29,4 @@
 2022-02-23 14:32:52.483419	2.0.1	Manually set version
 2022-02-23 14:34:47.438478	2.0.1	Manually set version
 2022-02-23 15:11:12.579705	2.0.1	Manually set version
+2022-03-07 11:16:55.588412	2.1.0	Versipy auto bump-up
