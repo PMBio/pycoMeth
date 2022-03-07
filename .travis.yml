@@ -26,18 +26,5 @@ deploy:
       branch: main
     password:
       secure: BQq5jbwy70rRR9jngGFSvPhBH2sVB/ntUxQ2TYD0Khcl0C+UOU/NCDYpxW9cB/ZoMnVWGeiKgDVOQrRFmcQk8JT49xctk9awaCxczKgJ5SfOv9lwIIpdZQ+d7QPDgI9P0lhoTfaIFZx00rRKtYr07g0mzGOBKDOdMn/22dOjp7CRfIPVfDOPQc5mySI6R9hHqYGaCIMmpzFhV5Q2+lxpYqK8f9usO5jkySXdP5boRrd+RYCEaP47IuIsr7zNXEkhWQSbDx35gV7JKe5g2HfZUBu9SI8GFbD02ncnpLRUQFLd7aUIx7oxnIhVUd/S6tlYKNfQyWuzAcEcRqxTMZMUj8AGlA7P1BpYJvU2FsLtX5Pf1jJwWTht07I9UpOMEhccJHvB1oDcmICKUB8wQFEKBYAWd3CbBGIXv7L5e/iTGG3J9cpmoN2XqzhUd3JBGBnKzy92cdSX/2vdw6XjL8NB1T5EVCsc/1vRrjIfALwEDxzX78Jo0oz9sq8AyHeTZWCTFI/q186FfSO8BXEuGY5AdhgWYbwB1mWW/QICgWgv+2S1swBorgVJ790eBleLIQk93PtwITom3Fv4x7tHWZwF1mfuwawEGdWEuo/vdM4T24wvU69DeT9rUs7sNbirWeOCaHVyakb3GEIqwhZEU+PxkIUMC0rt14tEynff5hiXsdU=
-#- provider: pages
-#  skip_cleanup: true
-#  target_branch: gh-pages-test
-#  github_token: "$GH_TOKEN"
-#  local_dir: site
-#  on:
-#    branch: dev
-#- provider: pages
-#  skip_cleanup: true
-#  github_token: "$GH_TOKEN"
-#  local_dir: site
-#  on:
-#    branch: master
 
 
