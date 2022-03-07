@@ -8,8 +8,6 @@ branches:
 install:
   - pip install pycometh
 script: true
-before_deploy:
-  - mkdocs build --verbose --clean
 deploy:
   - provider: pypi
     username: __token__
