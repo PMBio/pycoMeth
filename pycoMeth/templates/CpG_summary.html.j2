@@ -33,8 +33,12 @@
                                 <a href="https://a-slide.github.io/pycoMeth/" class="btn btn-link" target="_blank">Documentation</a>
                             <div/>
                             <div>
-                                <a href="https://github.com/a-slide/pycoMeth" class="btn btn-link" target="_blank">GitHub</a>
+                                <a href="https://github.com/snajder-r/pycoMeth" class="btn btn-link" target="_blank">GitHub</a>
                             <div/>
+
+                            <div>&nbsp</div>
+                            {{ navigation }}
+
                         </section>
                         <section class="navbar-section">
                             <div class="dropdown dropdown-right">
@@ -59,43 +63,44 @@
                 <div class="column col-9 col-mx-auto">
                     <div class="text-center">
                         <br>
-                        <img src=https://raw.githubusercontent.com/a-slide/pycoMeth/master/docs/pictures/pycoMeth_long.png class="center" alt="" style="max-height: 80px;">
+                        <img src=https://raw.githubusercontent.com/snajder-r/pycoMeth/master/docs/pictures/pycoMeth_long.png class="center" alt="" style="max-height: 80px;">
                         <div class="divider"></div>
-                        <h4>MethComp summary report generated on {{ date }} with pycoMeth {{ version }}</h4>
+                        <h4>{{ title_text }} generated on {{ date }} with pycoMeth {{ version }}</h4>
+                        <br
                         <div class="divider"></div>
                     </div>
                     <div class="columns">
-                        <div id="Overall summary" class="column col-11 col-mx-auto">
+                        <div id="Overall summary" class="column col-10 col-mx-auto">
                             <h5 style="margin-top: 50px;">Overall summary</h5>
                             {{ summary_html }}
                             <div class="divider"></div>
                         </div>
-                        <div id="Methylation Categories" class="column col-11 col-mx-auto">
+                        <div id="Methylation Categories" class="column col-10 col-mx-auto">
                             <h5 style="margin-top: 50px;">Methylation category counts by sample for significant CpG intervals</h5>
                             {{ catplot_html }}
                             <div class="divider"></div>
                         </div>
-                        <div id="CpG intervals heatmap" class="column col-11 col-mx-auto">
+                        <div id="CpG intervals heatmap" class="column col-10 col-mx-auto">
                             <h5 style="margin-top: 50px;">Methylation log-likelihood ratio by significant CpG interval</h5>
                             {{ heatmap_html }}
                             <div class="divider"></div>
                         </div>
-                        <div id="CpG interval ridgeplot" class="column col-11 col-mx-auto">
+                        <div id="CpG interval ridgeplot" class="column col-10 col-mx-auto">
                             <h5 style="margin-top: 50px;">Distribution of CpG methylation log-likelihood ratio for significant CpG intervals</h5>
                             {{ ridgeplot_html }}
                             <div class="divider"></div>
                         </div>
-                        <div id="Chromosome ideogram plot" class="column col-11 col-mx-auto">
+                        <div id="Chromosome ideogram plot" class="column col-10 col-mx-auto">
                             <h5 style="margin-top: 50px;">Distribution of significant CpG intervals by chromosomic intervals</h5>
                             {{ ideogram_html }}
                             <div class="divider"></div>
                         </div>
-                        <div id="TSS distance plot" class="column col-11 col-mx-auto">
+                        <div id="TSS distance plot" class="column col-10 col-mx-auto">
                             <h5 style="margin-top: 50px;">Distance from CpG interval to closest Gene TSS</h5>
                             {{ tss_dist_html }}
                             <div class="divider"></div>
                         </div>
-                        <div id="Top pvalues" class="column col-11 col-mx-auto">
+                        <div id="Top pvalues" class="column col-10 col-mx-auto">
                             <h5 style="margin-top: 50px;">Top significant differentially methylated intervals</h5>
                             {{ top_html }}
                             <div class="divider"></div>

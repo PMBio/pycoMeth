@@ -37,6 +37,7 @@ class MethCompWorker:
         min_samples,
         pvalue_method,
         min_num_reads_per_interval,
+        pvalue_threshold,
         hypothesis,
         do_independent_hypothesis_weighting,
     ):
@@ -48,6 +49,7 @@ class MethCompWorker:
         self.sample_hf_files: Dict[str, MetH5File] = {}
         self.llr_threshold = 2.0  # TODO expose parameter
         self.min_diff_bs = 0.25  # TODO expose parameter
+        self.pvalue_threshold = pvalue_threshold
         self.hypothesis = hypothesis
         self.do_independent_hypothesis_weighting = do_independent_hypothesis_weighting
         
@@ -125,6 +127,20 @@ class MethCompWorker:
             bs_list.append(bs)
         return bs_list
     
+    def compute_posthoc_test(self, test_values):
+        posthoc_pvalue_list = []
+        for sample_one in range(len(test_values)):
+            values_one = test_values[sample_one]
+            # Merge sample values before and after
+            values_others = [v for vl in test_values[:sample_one] for v in vl]
+            values_others += [v for vl in test_values[sample_one + 1 :] for v in vl]
+            if abs(np.mean(values_others) - np.mean(values_one)) > 0.25: # FIXME expose parameter
+                _, pvalue = mannwhitneyu(values_one, values_others)
+            else:
+                pvalue = 1
+            posthoc_pvalue_list.append(pvalue)
+        return posthoc_pvalue_list
+    
     def compute_pvalue(self, interval, label_list, raw_llr_list, raw_pos_list, raw_reads_list):
         counters_to_increase = []
         res = OrderedDict()
@@ -167,10 +183,13 @@ class MethCompWorker:
         else:
             difference = []
         if comment == "Valid":
+            post_hoc_pvalues = []
             try:
                 # Run stat test
                 if self.pvalue_method == "KW":
                     statistics, pvalue = kruskal(*test_values)
+                    if pvalue < self.pvalue_threshold:
+                        post_hoc_pvalues = self.compute_posthoc_test(test_values)
                 elif self.pvalue_method == "MW":
                     statistics, pvalue = mannwhitneyu(test_values[0], test_values[1], alternative="two-sided")
                 elif self.pvalue_method == "paired":
@@ -195,10 +214,12 @@ class MethCompWorker:
             res["n_samples"] = n_samples
             if self.do_independent_hypothesis_weighting:
                 res["ihw_weight"] = ihw_weight
-            res["label_list"] = list_to_str(label_list)
+            res["labels"] = list_to_str(label_list)
             res["med_llr_list"] = list_to_str(med_llr_list)
             res["raw_llr_list"] = list_to_str(raw_llr_list)
             res["difference"] = list_to_str(difference)
+            if self.pvalue_method == "KW":
+                res["post_hoc_pvalues"] = list_to_str(post_hoc_pvalues)
             res["comment"] = comment
             res["raw_pos_list"] = list_to_str(raw_pos_list)
             res["avg_coverage"] = list_to_str(avg_coverage)
@@ -209,11 +230,13 @@ class MethCompWorker:
             res["n_samples"] = 0
             if self.do_independent_hypothesis_weighting:
                 res["ihw_weight"] = 0.0
-            res["label_list"] = "[]"
+            res["labels"] = "[]"
             res["med_llr_list"] = "[]"
             res["raw_llr_list"] = "[]"
             res["comment"] = comment
-            res["difference"] = []
+            res["difference"] = "[]"
+            if self.pvalue_method == "KW":
+                res["post_hoc_pvalues"] = "[]"
             res["raw_pos_list"] = "[]"
             res["avg_coverage"] = "[]"
             res["unique_cpg_pos"] = "[]"
@@ -226,7 +249,6 @@ class MethCompWorker:
             return self.compute_pvalue(interval, label_list, raw_llr_list, raw_pos_list, raw_read_list)
         except:
             import traceback
-            
             print(traceback.format_exc())
             raise
 
@@ -411,6 +433,7 @@ def Meth_Comp(
                     min_samples=min_samples,
                     pvalue_method=pvalue_method,
                     min_num_reads_per_interval=min_num_reads_per_interval,
+                    pvalue_threshold=pvalue_threshold,
                     hypothesis=hypothesis,
                     do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
                 ),
@@ -427,6 +450,7 @@ def Meth_Comp(
                 verbose=verbose,
                 output_raw_lists=False,
                 with_ihw_weight=do_independent_hypothesis_weighting,
+                with_posthoc_test=pvalue_method == "KW",
             ) as writer:
                 
                 def callback(*args):
@@ -472,7 +496,7 @@ def Meth_Comp(
                 # Convert results to dataframe and correct pvalues for multiple tests
                 log.info("Adjust pvalues")
                 stats_results.multitest_adjust()
-                
+
                 rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
                 rewriter.write_adjusted_pvalues(stats_results.res_list)
     
@@ -539,7 +563,6 @@ class StatsResults:
         if "ihw_weight" in res:
             reduced_res["ihw_weight"] = res["ihw_weight"]
         self.res_list.append(reduced_res)
-        
         return res
     
     def multitest_adjust(self):
@@ -605,13 +628,22 @@ class StatsResults:
 class Comp_Writer:
     """Extract data for valid sites and write to BED and/or TSV file."""
     
-    def __init__(self, bed_fn=None, tsv_fn=None, verbose=True, output_raw_lists=False, with_ihw_weight=False):
+    def __init__(
+        self,
+        bed_fn=None,
+        tsv_fn=None,
+        verbose=True,
+        output_raw_lists=False,
+        with_ihw_weight=False,
+        with_posthoc_test=False,
+    ):
         """"""
         self.log = get_logger(name="Comp_Writer", verbose=verbose)
         self.bed_fn = bed_fn
         self.tsv_fn = tsv_fn
         self.output_raw_lists = output_raw_lists
         self.with_ihw_weight = with_ihw_weight
+        self.with_posthoc_test = with_posthoc_test
         
         # Init file pointers
         self.bed_fp = self._init_bed() if bed_fn else None
@@ -699,7 +731,7 @@ class Comp_Writer:
         fp = gzip.open(self.tsv_fn, "wt") if self.tsv_fn.endswith(".gz") else open(self.tsv_fn, "w")
         # Write header line
         
-        header = [
+        self.header = [
             "chromosome",
             "start",
             "end",
@@ -711,40 +743,22 @@ class Comp_Writer:
             "med_llr_list",
             "difference",
         ]
+        if self.with_posthoc_test:
+            self.header = self.header + ["post_hoc_pvalues"]
         if self.output_raw_lists:
-            header = header + ["raw_llr_list", "raw_pos_list"]
+            self.header = self.header + ["raw_llr_list", "raw_pos_list"]
         if self.with_ihw_weight:
-            header = header + ["ihw_weight"]
-        header = header + [
+            self.header = self.header + ["ihw_weight"]
+        self.header = self.header + [
             "avg_coverage",
             "comment",
         ]
-        fp.write(str_join(header, sep="\t", line_end="\n"))
+        fp.write(str_join(self.header, sep="\t", line_end="\n"))
         return fp
     
     def _write_tsv(self, res):
         """Write line to TSV file."""
-        
-        res_line = [
-            res["chromosome"],
-            res["start"],
-            res["end"],
-            res["n_samples"],
-            res["pvalue"],
-            res["adj_pvalue"],
-            res["unique_cpg_pos"],
-            res["label_list"],
-            res["med_llr_list"],
-            res["difference"],
-        ]
-        if self.output_raw_lists:
-            res_line = res_line + [res["raw_llr_list"], res["raw_pos_list"]]
-        if self.with_ihw_weight:
-            res_line = res_line + [res["ihw_weight"]]
-        res_line = res_line + [
-            res["avg_coverage"],
-            res["comment"],
-        ]
+        res_line = [res[k] for k in self.header]
         self.tsv_fp.write(str_join(res_line, sep="\t", line_end="\n"))
 
 
@@ -789,11 +803,11 @@ class Comp_ReWriter:
                                 else:
                                     score = int(-np.log10(res["adj_pvalue"]))
                                 
-                                updated_line[4] = score
+                                updated_line[4] = str(score)
                             else:
                                 updated_line[header["adj_pvalue"]] = str(res["adj_pvalue"])
                                 updated_line[header["comment"]] = res["comment"]
-                                print(sep.join(updated_line))
+                            print(sep.join(updated_line))
 
 
 def read_readgroups_file(readgroups_file: IO):
