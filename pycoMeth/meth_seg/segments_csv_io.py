@@ -49,7 +49,7 @@ class SegmentsWriterBED:
         df = pd.DataFrame(df_rowvals, columns=["chrom", "start", "end", "num_sites"])
         df = df.astype({"chrom": str, "start": int, "end": int, "num_sites": int})
         
-        df.to_csv(self.outfile, sep="\t", header=self.first, index=False, mode="w" if self.first else "a")
+        df.to_csv(self.outfile, sep="\t", header=False, index=False, mode="w" if self.first else "a")
         self.first = False
 
 
