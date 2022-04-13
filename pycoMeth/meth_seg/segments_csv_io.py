@@ -25,12 +25,26 @@ class SegmentsWriterBED:
     ):
         df_rowvals = []
         
-        for seg in sorted(list(set(segments))):
+        unique_segments = sorted(list(set(segments)))
+        for seg in unique_segments:
             seg_pos = np.arange(llrs.shape[1])[segments == seg]
             start = genomic_starts[seg_pos[0]]
             end = genomic_ends[seg_pos[-1]]
             
-            rowval = {"chrom": self.chrom, "start": start, "end": end, "num_sites": (segments == seg).sum()}
+            if seg == unique_segments[0]:
+                segment_type = "window_start"
+            elif seg == unique_segments[-1]:
+                segment_type = "window_end"
+            else:
+                segment_type = "inner_segment"
+                
+            rowval = {
+                "chrom": self.chrom,
+                "start": start,
+                "end": end,
+                "num_sites": (segments == seg).sum(),
+                "type": segment_type,
+            }
             if samples is not None and compute_diffmet:
                 samples_unique = list(set(samples))
                 seg_llrs = llrs[:, segments == seg]
@@ -46,8 +60,8 @@ class SegmentsWriterBED:
             
             df_rowvals.append(rowval)
         
-        df = pd.DataFrame(df_rowvals, columns=["chrom", "start", "end", "num_sites"])
-        df = df.astype({"chrom": str, "start": int, "end": int, "num_sites": int})
+        df = pd.DataFrame(df_rowvals, columns=["chrom", "start", "end", "num_sites", "type"])
+        df = df.astype({"chrom": str, "start": int, "end": int, "num_sites": int, "type": str})
         
         df.to_csv(self.outfile, sep="\t", header=False, index=False, mode="w" if self.first else "a")
         self.first = False
@@ -86,7 +100,12 @@ class SegmentsWriterBedGraph:
                     end = genomic_ends[seg_pos[-1]]
                     seg_llrs = llrs[:, segments == seg]
                     sample_llr = seg_llrs[samples == sample]
-                    sample_metrate = (sample_llr > 2).sum() / (np.abs(sample_llr) > 2).sum()
+                    good_calls = (np.abs(sample_llr) > 2).sum()
+                    pos_calls = (sample_llr > 2).sum()
+                    if good_calls > 0:
+                        sample_metrate = pos_calls / good_calls
+                    else:
+                        sample_metrate = np.nan
                     row = f"{self.chrom} {start} {end} {sample_metrate}\n"
                     f.write(row)
 
