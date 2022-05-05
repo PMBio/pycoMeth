@@ -17,7 +17,6 @@ from pycoMeth.Meth_Seg import Meth_Seg
 # ~~~~~~~~~~~~~~TOP LEVEL ENTRY POINT~~~~~~~~~~~~~~#
 def main(args=None):
     """ Main entry point for pycoMeth command line interface"""
-    
     # Parser and subparsers for command
     parser = argparse.ArgumentParser(description=pkg.__description__)
     parser.add_argument("--version", action="version", version="{} v{}".format(pkg.__name__, pkg.__version__))

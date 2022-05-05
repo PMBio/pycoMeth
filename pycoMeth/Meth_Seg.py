@@ -30,9 +30,9 @@ def worker_segment(input_queue: Queue, output_queue: Queue, max_segments_per_win
             break
         
         sparse_matrix, fraction = job
-        llrs = np.array(sparse_matrix.met_matrix.todense())
+        llrs = sparse_matrix.met_matrix
         
-        if sparse_matrix.shape[1] < -1:
+        if sparse_matrix.shape[1] <= 1:
             # Too few CpG-sites. Nothing to segment.
             segmentation = np.zeros(sparse_matrix.shape[1])
             result_tuple = (
@@ -52,7 +52,6 @@ def worker_segment(input_queue: Queue, output_queue: Queue, max_segments_per_win
                 sparse_matrix.genomic_coord_end,
                 sparse_matrix.read_samples,
             )
-        
         output_queue.put((result_tuple, fraction))
 
 
@@ -73,7 +72,6 @@ def worker_output(
             res = output_queue.get()
             if res is None:
                 break
-            
             seg_result, fraction = res
             llrs, segments, genomic_starts, genomic_ends, samples = seg_result
             

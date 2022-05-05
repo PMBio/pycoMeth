@@ -13,7 +13,7 @@ import scipy.sparse
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
-from scipy.stats import kruskal, mannwhitneyu, wilcoxon
+from scipy.stats import kruskal, mannwhitneyu, wilcoxon, fisher_exact, chi2_contingency
 from statsmodels.stats.multitest import multipletests
 from multiprocessing import Pool
 from meth5.meth5 import MetH5File
@@ -126,6 +126,23 @@ class MethCompWorker:
             bs = [m / na for m, na in zip(met_list, nonambig_list) if na > 0]
             bs_list.append(bs)
         return bs_list
+
+    def compute_contingency_table(
+        self, raw_llr_list: List[List[float]]) -> List[List[float]]:
+        """
+        Computes contingency table as for fisher exact test by thresholding llrs and counting
+        methylation/unmethylated calls for each sample
+        :param raw_llr_list: one list of log-likelihood ratios per sample to be compared
+        :return: contingency table of shape (n_samples, 2)
+        """
+        num_samples = len(raw_llr_list)
+        contingency_table = []
+        for sample in range(num_samples):
+            n_met = sum(llr > self.llr_threshold for llr in raw_llr_list[sample])
+            n_called = sum(abs(llr) > self.llr_threshold for llr in raw_llr_list[sample])
+            n_unmet = n_called - n_met
+            contingency_table.append([n_met, n_unmet])
+        return contingency_table
     
     def compute_posthoc_test(self, test_values):
         posthoc_pvalue_list = []
@@ -134,10 +151,19 @@ class MethCompWorker:
             # Merge sample values before and after
             values_others = [v for vl in test_values[:sample_one] for v in vl]
             values_others += [v for vl in test_values[sample_one + 1 :] for v in vl]
-            if abs(np.mean(values_others) - np.mean(values_one)) > 0.25: # FIXME expose parameter
-                _, pvalue = mannwhitneyu(values_one, values_others)
+            
+            if self.pvalue_method == "chi_squared":
+                # If the original test was a chi_squared test, we use fisher exact to compute post-hoc test
+                # on the corresponding rows of the contingency table
+                _, pvalue = fisher_exact([values_one, values_others])
+            elif self.pvalue_method == "KW":
+                if abs(np.mean(values_others) - np.mean(values_one)) > 0.25:  # FIXME expose parameter
+                    _, pvalue = mannwhitneyu(values_one, values_others)
+                else:
+                    pvalue = 1
             else:
-                pvalue = 1
+                raise ValueError("Internal error: Attempted to compute post-hoc when not appropriate")
+            
             posthoc_pvalue_list.append(pvalue)
         return posthoc_pvalue_list
     
@@ -163,6 +189,8 @@ class MethCompWorker:
                 test_values = self.compute_site_betascores(raw_pos_list, raw_llr_list)
             else:
                 test_values = self.compute_read_betascores(raw_reads_list, raw_llr_list)
+        elif self.hypothesis == "count_dependency":
+            test_values = self.compute_contingency_table(raw_llr_list)
         
         if n_samples < self.min_samples:
             # Not enough samples
@@ -194,6 +222,12 @@ class MethCompWorker:
                     statistics, pvalue = mannwhitneyu(test_values[0], test_values[1], alternative="two-sided")
                 elif self.pvalue_method == "paired":
                     statistics, pvalue = wilcoxon(test_values[0], test_values[1])
+                elif self.pvalue_method == "fisher_exact":
+                    statistics, pvalue = fisher_exact(test_values)
+                elif self.pvalue_method == "chi2_squared":
+                    statistics, pvalue, _, _ = chi2_contingency(test_values)
+                    if pvalue < self.pvalue_threshold:
+                        post_hoc_pvalues = self.compute_posthoc_test(test_values)
             except ValueError:
                 # This happens for example if all values are equal in mannwhitneyu
                 pvalue = 1
@@ -338,7 +372,9 @@ def Meth_Comp(
      * worker_processes
          Number of processes to be launched
      * hypothesis
-        "llr_diff" if the hypotheis is a shift in llrs, "bs_diff" if the hypothesis is a shift in mean read methylation rate
+        "llr_diff" if the hypotheis is a shift in llrs, "bs_diff" if the hypothesis is a shift in mean read methylation
+        rate, or "count_dependency" if the hypothesis is dependencies between groups in the contingency table of
+        methylated/unmethylated calls
      * do_independent_hypothesis_weighting
          Whether to include independent hypothesis weighting in the p-value adjustment
     """
@@ -383,11 +419,16 @@ def Meth_Comp(
     
     # 3 values = Kruskal Wallis test
     if all_samples >= 3:
-        pvalue_method = "KW"
-        log.debug("Multiple comparison mode (Kruskal_Wallis test)")
-        if min_samples < 3:
-            log.debug("Automatically raise number of minimal samples to 3")
+        if hypothesis == "count_dependency":
+            log.debug("Multiple comparison mode for count depdencies (Chi-squared test)")
+            pvalue_method = "chi_squared"
             min_samples = 3
+        else:
+            pvalue_method = "KW"
+            log.debug("Multiple comparison mode (Kruskal_Wallis test)")
+            if min_samples < 3:
+                log.debug("Automatically raise number of minimal samples to 3")
+                min_samples = 3
     # 2 values = Mann_Withney test
     elif all_samples == 2:
         if min_samples:
@@ -397,8 +438,12 @@ def Meth_Comp(
             pvalue_method = "paired"
             log.debug("Paired comparison mode (Wilcoxon)")
         else:
-            pvalue_method = "MW"
-            log.debug("Pairwise comparison mode (Mann_Withney test)")
+            if hypothesis == "count_dependency":
+                log.debug("Pairwise comparison mode for count depdencies (Fisher exact test)")
+                pvalue_method = "fisher_exact"
+            else:
+                pvalue_method = "MW"
+                log.debug("Pairwise comparison mode (Mann_Withney test)")
     else:
         raise pycoMethError("Meth_Comp needs at least 2 input files")
     
