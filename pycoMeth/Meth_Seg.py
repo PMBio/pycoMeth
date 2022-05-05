@@ -117,6 +117,9 @@ def worker_reader(
                     other_met_matrix = other_values_container.to_sparse_methylation_matrix(
                         read_read_names=False, read_groups_key=read_groups_keys
                     )
+                    if other_met_matrix.met_matrix.shape[0] <= 1:
+                        continue
+                        
                     if read_groups_keys is None:
                         other_met_matrix.read_samples = np.array(
                             [f"{other_m5file.name}" for _ in other_met_matrix.read_names]
