@@ -224,7 +224,7 @@ class MethCompWorker:
                     statistics, pvalue = wilcoxon(test_values[0], test_values[1])
                 elif self.pvalue_method == "fisher_exact":
                     statistics, pvalue = fisher_exact(test_values)
-                elif self.pvalue_method == "chi2_squared":
+                elif self.pvalue_method == "chi_squared":
                     statistics, pvalue, _, _ = chi2_contingency(test_values)
                     if pvalue < self.pvalue_threshold:
                         post_hoc_pvalues = self.compute_posthoc_test(test_values)
