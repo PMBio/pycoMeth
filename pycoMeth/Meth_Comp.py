@@ -252,7 +252,7 @@ class MethCompWorker:
             res["med_llr_list"] = list_to_str(med_llr_list)
             res["raw_llr_list"] = list_to_str(raw_llr_list)
             res["difference"] = list_to_str(difference)
-            if self.pvalue_method == "KW":
+            if self.pvalue_method in {"KW", "chi_squared"}:
                 res["post_hoc_pvalues"] = list_to_str(post_hoc_pvalues)
             res["comment"] = comment
             res["raw_pos_list"] = list_to_str(raw_pos_list)
@@ -269,7 +269,7 @@ class MethCompWorker:
             res["raw_llr_list"] = "[]"
             res["comment"] = comment
             res["difference"] = "[]"
-            if self.pvalue_method == "KW":
+            if self.pvalue_method in {"KW", "chi_squared"}:
                 res["post_hoc_pvalues"] = "[]"
             res["raw_pos_list"] = "[]"
             res["avg_coverage"] = "[]"
@@ -495,7 +495,7 @@ def Meth_Comp(
                 verbose=verbose,
                 output_raw_lists=False,
                 with_ihw_weight=do_independent_hypothesis_weighting,
-                with_posthoc_test=pvalue_method == "KW",
+                with_posthoc_test=pvalue_method in {"KW", "chi_squared"},
             ) as writer:
                 
                 def callback(*args):
