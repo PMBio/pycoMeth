@@ -182,13 +182,17 @@ class MethCompWorker:
         # Collect median llr
         med_llr_list = [np.median(llrs) for llrs in raw_llr_list]
         
+        #"Lazy load" this variable as a slight performance boon
+        read_beta_scores = None
+        
         if self.hypothesis == "llr_diff":
             test_values = raw_llr_list
         elif self.hypothesis == "bs_diff":
             if self.pvalue_method == "paired":
                 test_values = self.compute_site_betascores(raw_pos_list, raw_llr_list)
             else:
-                test_values = self.compute_read_betascores(raw_reads_list, raw_llr_list)
+                read_beta_scores = self.compute_read_betascores(raw_reads_list, raw_llr_list)
+                test_values = read_beta_scores
         elif self.hypothesis == "count_dependency":
             test_values = self.compute_contingency_table(raw_llr_list)
         
@@ -241,7 +245,9 @@ class MethCompWorker:
             
             # Compute statistic used for independent hypothesis weighting
             if self.do_independent_hypothesis_weighting:
-                ihw_weight = self.compute_ihw_weight(test_values)
+                if read_beta_scores is None:
+                    read_beta_scores = self.compute_read_betascores(raw_reads_list, raw_llr_list)
+                ihw_weight = self.compute_ihw_weight(read_beta_scores)
             
             res["pvalue"] = pvalue
             res["adj_pvalue"] = np.nan
@@ -566,7 +572,7 @@ def Meth_Comp(
     finally:
         # Print counters
         log_dict(stats_results.counter, log.info, "Results summary")
-        raise
+        
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~StatsResults HELPER CLASS~~~~~~~~~~~~~~~~~~~~~~~~~~~#
