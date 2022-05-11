@@ -287,7 +287,7 @@ class MethCompWorker:
             raise
 
 
-def initializer(**args):
+def initializer(args: Dict):
     """Initializes a worker object at the beginning when the
     multiprocessing pool is created and puts it in the global
     namespace."""
@@ -467,22 +467,36 @@ def Meth_Comp(
         ) as pbar:
             
             log.info("Launching %d worker processes" % worker_processes)
-            
-            pool = Pool(
-                worker_processes,
-                initializer=lambda: initializer(
-                    h5_read_groups_key=read_groups_key,
-                    sample_id_list=sample_id_list,
-                    h5_file_list=h5_file_list,
-                    min_diff_llr=min_diff_llr,
-                    min_samples=min_samples,
-                    pvalue_method=pvalue_method,
-                    min_num_reads_per_interval=min_num_reads_per_interval,
-                    pvalue_threshold=pvalue_threshold,
-                    hypothesis=hypothesis,
-                    do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
-                ),
-            )
+            if worker_processes == 1:
+                initializer(dict(
+                        h5_read_groups_key=read_groups_key,
+                        sample_id_list=sample_id_list,
+                        h5_file_list=h5_file_list,
+                        min_diff_llr=min_diff_llr,
+                        min_samples=min_samples,
+                        pvalue_method=pvalue_method,
+                        min_num_reads_per_interval=min_num_reads_per_interval,
+                        pvalue_threshold=pvalue_threshold,
+                        hypothesis=hypothesis,
+                        do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
+                    ))
+            else:
+                pool = Pool(
+                    worker_processes,
+                    initializer=initializer,
+                    initargs=[dict(
+                        h5_read_groups_key=read_groups_key,
+                        sample_id_list=sample_id_list,
+                        h5_file_list=h5_file_list,
+                        min_diff_llr=min_diff_llr,
+                        min_samples=min_samples,
+                        pvalue_method=pvalue_method,
+                        min_num_reads_per_interval=min_num_reads_per_interval,
+                        pvalue_threshold=pvalue_threshold,
+                        hypothesis=hypothesis,
+                        do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
+                    )]
+                )
             
             # Continue reading lines from all files
             log.debug("Starting deep parsing")
@@ -497,60 +511,62 @@ def Meth_Comp(
                 with_ihw_weight=do_independent_hypothesis_weighting,
                 with_posthoc_test=pvalue_method in {"KW", "chi_squared"},
             ) as writer:
+                try:
+                    def callback(*args):
+                        result_line = stats_results.callback(*(args[0]))
+                        writer.write(result_line)
+                        pbar.update(1)
+                    
+                    abort = False
+                    
+                    def error_callback(err):
+                        log.critical("Error in worker thread ")
+                        log.critical(str(err))
+                        nonlocal abort
+                        abort = True
+                    
+                    async_results = []
+                    # TODO perhaps perform this in batches (e.g. submit 10k intervals,
+                    #  wait for all to finish, then submit the next 10k, etc...)
+                    #  instead of submitting every interval into the queue and then waiting
+                    #  for all of them to finish.
+                    #  That would allow for a more reasonable timeout.
+                    for interval in intervals_gen:
+                        if abort:
+                            raise pycoMethError("Aborting due to error in worker thread")
+                        if worker_processes == 1:
+                            callback(worker(interval))
+                        else:
+                            ar = pool.apply_async(
+                                worker_function,
+                                args=[interval],
+                                callback=callback,
+                                error_callback=error_callback,
+                            )
+                            async_results.append(ar)
+                    if worker_processes > 1:
+                        for i, ar in enumerate(async_results):
+                            if abort:
+                                break
+                            ar.wait(timeout=3 * 24 * 3600)
+                except:
+                    writer.abort()
+                    raise
+                # Exit condition
+                if not stats_results.res_list:
+                    log.info("No valid p-Value could be computed")
                 
-                def callback(*args):
-                    result_line = stats_results.callback(*(args[0]))
-                    writer.write(result_line)
-                    pbar.update(1)
-                
-                abort = False
-                
-                def error_callback(err):
-                    log.critical("Error in worker thread ")
-                    log.critical(str(err))
-                    nonlocal abort
-                    abort = True
-                
-                async_results = []
-                # TODO perhaps perform this in batches (e.g. submit 10k intervals,
-                #  wait for all to finish, then submit the next 10k, etc...)
-                #  instead of submitting every interval into the queue and then waiting
-                #  for all of them to finish.
-                #  That would allow for a more reasonable timeout.
-                for interval in intervals_gen:
-                    if abort:
-                        raise pycoMethError("Aborting due to error in worker thread")
-                    ar = pool.apply_async(
-                        worker_function,
-                        args=[interval],
-                        callback=callback,
-                        error_callback=error_callback,
-                    )
-                    async_results.append(ar)
-                
-                for i, ar in enumerate(async_results):
-                    if abort:
-                        break
-                    ar.wait(timeout=3 * 24 * 3600)
-            
-            # Exit condition
-            if not stats_results.res_list:
-                log.info("No valid p-Value could be computed")
-            
-            else:
-                # Convert results to dataframe and correct pvalues for multiple tests
-                log.info("Adjust pvalues")
-                stats_results.multitest_adjust()
-
-                rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
-                rewriter.write_adjusted_pvalues(stats_results.res_list)
+                else:
+                    # Convert results to dataframe and correct pvalues for multiple tests
+                    log.info("Adjust pvalues")
+                    stats_results.multitest_adjust()
     
-    except:
-        writer.abort()
-        raise
+                    rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
+                    rewriter.write_adjusted_pvalues(stats_results.res_list)
     finally:
         # Print counters
         log_dict(stats_results.counter, log.info, "Results summary")
+        raise
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~StatsResults HELPER CLASS~~~~~~~~~~~~~~~~~~~~~~~~~~~#
