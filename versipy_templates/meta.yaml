@@ -28,14 +28,10 @@ test:
   imports:
     - pycoMeth.FileParser
     - pycoMeth.CoordGen
-    - pycoMeth.CpG_Aggregate
-    - pycoMeth.Interval_Aggregate
     - pycoMeth.Meth_Comp
     - pycoMeth.Comp_Report
     - pycoMeth.CGI_Finder
   commands:
-    - pycoMeth CpG_Aggregate --help
-    - pycoMeth Interval_Aggregate --help
     - pycoMeth Meth_Comp --help
     - pycoMeth Comp_Report --help
     - pycoMeth CGI_Finder --help

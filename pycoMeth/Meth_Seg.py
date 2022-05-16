@@ -1,21 +1,14 @@
-import time
 from pathlib import Path
-from typing import IO, Iterable, List, Optional
+from typing import IO, List
 from multiprocessing import Queue, Process
-import argparse
 import logging
 
 import tqdm
-import pandas as pd
 import numpy as np
-from meth5.meth5 import MetH5File
+from meth5 import MetH5File
 from meth5.sparse_matrix import SparseMethylationMatrixContainer
 
-from pycoMeth.meth_seg.emissions import BernoulliPosterior
-from pycoMeth.meth_seg.hmm import SegmentationHMM
-from pycoMeth.meth_seg.postprocessing import cleanup_segmentation
 from pycoMeth.meth_seg.segments_csv_io import SegmentsWriterBED, SegmentsWriterBedGraph
-from pycoMeth.meth_seg.math import llr_to_p
 from pycoMeth.meth_seg.segment import segment
 
 

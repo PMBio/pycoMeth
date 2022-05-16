@@ -4,19 +4,18 @@
 # Standard library imports
 import itertools
 import random
-from typing import IO, List, Generator, Dict, Any
+from typing import IO, List, Dict, Any
 from math import sqrt
 import fileinput
 
 # Third party imports
-import scipy.sparse
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
 from scipy.stats import kruskal, mannwhitneyu, wilcoxon, fisher_exact, chi2_contingency
 from statsmodels.stats.multitest import multipletests
 from multiprocessing import Pool
-from meth5.meth5 import MetH5File
+from meth5 import MetH5File
 
 # Local imports
 from pycoMeth.common import *

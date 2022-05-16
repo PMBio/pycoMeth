@@ -1,4 +1,4 @@
-from meth5.meth5 import MetH5File
+from meth5 import MetH5File
 
 from typing import List, Tuple, Dict
 from pycoMeth.CoordGen import Coord
