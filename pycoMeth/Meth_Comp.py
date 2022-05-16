@@ -126,9 +126,8 @@ class MethCompWorker:
             bs = [m / na for m, na in zip(met_list, nonambig_list) if na > 0]
             bs_list.append(bs)
         return bs_list
-
-    def compute_contingency_table(
-        self, raw_llr_list: List[List[float]]) -> List[List[float]]:
+    
+    def compute_contingency_table(self, raw_llr_list: List[List[float]]) -> List[List[float]]:
         """
         Computes contingency table as for fisher exact test by thresholding llrs and counting
         methylation/unmethylated calls for each sample
@@ -145,26 +144,29 @@ class MethCompWorker:
         return contingency_table
     
     def compute_posthoc_test(self, test_values):
-        posthoc_pvalue_list = []
-        for sample_one in range(len(test_values)):
-            values_one = test_values[sample_one]
-            # Merge sample values before and after
-            values_others = [v for vl in test_values[:sample_one] for v in vl]
-            values_others += [v for vl in test_values[sample_one + 1 :] for v in vl]
-            
-            if self.pvalue_method == "chi_squared":
-                # If the original test was a chi_squared test, we use fisher exact to compute post-hoc test
-                # on the corresponding rows of the contingency table
-                _, pvalue = fisher_exact([values_one, values_others])
-            elif self.pvalue_method == "KW":
-                if abs(np.mean(values_others) - np.mean(values_one)) > 0.25:  # FIXME expose parameter
-                    _, pvalue = mannwhitneyu(values_one, values_others)
+        try:
+            posthoc_pvalue_list = []
+            for sample_one in range(len(test_values)):
+                values_one = test_values[sample_one]
+                if self.pvalue_method == "chi_squared":
+                    # If the original test was a chi_squared test, we use fisher exact to compute post-hoc test
+                    # on the corresponding rows of the contingency table
+                    values_others = [sum(v[i] for j, v in enumerate(test_values) if j != sample_one) for i in range(2)]
+                    _, pvalue = fisher_exact([values_one, values_others])
+                elif self.pvalue_method == "KW":
+                    # Merge sample values before and after
+                    values_others = [v for vl in test_values[:sample_one] for v in vl]
+                    values_others += [v for vl in test_values[sample_one + 1 :] for v in vl]
+                    if abs(np.mean(values_others) - np.mean(values_one)) > 0.25:  # FIXME expose parameter
+                        _, pvalue = mannwhitneyu(values_one, values_others)
+                    else:
+                        pvalue = 1
                 else:
-                    pvalue = 1
-            else:
-                raise ValueError("Internal error: Attempted to compute post-hoc when not appropriate")
-            
-            posthoc_pvalue_list.append(pvalue)
+                    raise ValueError("Internal error: Attempted to compute post-hoc when not appropriate")
+                
+                posthoc_pvalue_list.append(pvalue)
+        except ValueError:
+            posthoc_pvalue_list = [1.0] * len(test_values)
         return posthoc_pvalue_list
     
     def compute_pvalue(self, interval, label_list, raw_llr_list, raw_pos_list, raw_reads_list):
@@ -182,13 +184,17 @@ class MethCompWorker:
         # Collect median llr
         med_llr_list = [np.median(llrs) for llrs in raw_llr_list]
         
+        # "Lazy load" this variable as a slight performance boon
+        read_beta_scores = None
+        
         if self.hypothesis == "llr_diff":
             test_values = raw_llr_list
         elif self.hypothesis == "bs_diff":
             if self.pvalue_method == "paired":
                 test_values = self.compute_site_betascores(raw_pos_list, raw_llr_list)
             else:
-                test_values = self.compute_read_betascores(raw_reads_list, raw_llr_list)
+                read_beta_scores = self.compute_read_betascores(raw_reads_list, raw_llr_list)
+                test_values = read_beta_scores
         elif self.hypothesis == "count_dependency":
             test_values = self.compute_contingency_table(raw_llr_list)
         
@@ -241,7 +247,9 @@ class MethCompWorker:
             
             # Compute statistic used for independent hypothesis weighting
             if self.do_independent_hypothesis_weighting:
-                ihw_weight = self.compute_ihw_weight(test_values)
+                if read_beta_scores is None:
+                    read_beta_scores = self.compute_read_betascores(raw_reads_list, raw_llr_list)
+                ihw_weight = self.compute_ihw_weight(read_beta_scores)
             
             res["pvalue"] = pvalue
             res["adj_pvalue"] = np.nan
@@ -283,11 +291,12 @@ class MethCompWorker:
             return self.compute_pvalue(interval, label_list, raw_llr_list, raw_pos_list, raw_read_list)
         except:
             import traceback
+            
             print(traceback.format_exc())
             raise
 
 
-def initializer(**args):
+def initializer(args: Dict):
     """Initializes a worker object at the beginning when the
     multiprocessing pool is created and puts it in the global
     namespace."""
@@ -467,22 +476,40 @@ def Meth_Comp(
         ) as pbar:
             
             log.info("Launching %d worker processes" % worker_processes)
-            
-            pool = Pool(
-                worker_processes,
-                initializer=lambda: initializer(
-                    h5_read_groups_key=read_groups_key,
-                    sample_id_list=sample_id_list,
-                    h5_file_list=h5_file_list,
-                    min_diff_llr=min_diff_llr,
-                    min_samples=min_samples,
-                    pvalue_method=pvalue_method,
-                    min_num_reads_per_interval=min_num_reads_per_interval,
-                    pvalue_threshold=pvalue_threshold,
-                    hypothesis=hypothesis,
-                    do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
-                ),
-            )
+            if worker_processes == 1:
+                initializer(
+                    dict(
+                        h5_read_groups_key=read_groups_key,
+                        sample_id_list=sample_id_list,
+                        h5_file_list=h5_file_list,
+                        min_diff_llr=min_diff_llr,
+                        min_samples=min_samples,
+                        pvalue_method=pvalue_method,
+                        min_num_reads_per_interval=min_num_reads_per_interval,
+                        pvalue_threshold=pvalue_threshold,
+                        hypothesis=hypothesis,
+                        do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
+                    )
+                )
+            else:
+                pool = Pool(
+                    worker_processes,
+                    initializer=initializer,
+                    initargs=[
+                        dict(
+                            h5_read_groups_key=read_groups_key,
+                            sample_id_list=sample_id_list,
+                            h5_file_list=h5_file_list,
+                            min_diff_llr=min_diff_llr,
+                            min_samples=min_samples,
+                            pvalue_method=pvalue_method,
+                            min_num_reads_per_interval=min_num_reads_per_interval,
+                            pvalue_threshold=pvalue_threshold,
+                            hypothesis=hypothesis,
+                            do_independent_hypothesis_weighting=do_independent_hypothesis_weighting,
+                        )
+                    ],
+                )
             
             # Continue reading lines from all files
             log.debug("Starting deep parsing")
@@ -497,57 +524,59 @@ def Meth_Comp(
                 with_ihw_weight=do_independent_hypothesis_weighting,
                 with_posthoc_test=pvalue_method in {"KW", "chi_squared"},
             ) as writer:
+                try:
+                    
+                    def callback(*args):
+                        result_line = stats_results.callback(*(args[0]))
+                        writer.write(result_line)
+                        pbar.update(1)
+                    
+                    abort = False
+                    
+                    def error_callback(err):
+                        log.critical("Error in worker thread ")
+                        log.critical(str(err))
+                        nonlocal abort
+                        abort = True
+                    
+                    async_results = []
+                    # TODO perhaps perform this in batches (e.g. submit 10k intervals,
+                    #  wait for all to finish, then submit the next 10k, etc...)
+                    #  instead of submitting every interval into the queue and then waiting
+                    #  for all of them to finish.
+                    #  That would allow for a more reasonable timeout.
+                    for interval in intervals_gen:
+                        if abort:
+                            raise pycoMethError("Aborting due to error in worker thread")
+                        if worker_processes == 1:
+                            callback(worker(interval))
+                        else:
+                            ar = pool.apply_async(
+                                worker_function,
+                                args=[interval],
+                                callback=callback,
+                                error_callback=error_callback,
+                            )
+                            async_results.append(ar)
+                    if worker_processes > 1:
+                        for i, ar in enumerate(async_results):
+                            if abort:
+                                break
+                            ar.wait(timeout=3 * 24 * 3600)
+                except:
+                    writer.abort()
+                    raise
+                # Exit condition
+                if not stats_results.res_list:
+                    log.info("No valid p-Value could be computed")
                 
-                def callback(*args):
-                    result_line = stats_results.callback(*(args[0]))
-                    writer.write(result_line)
-                    pbar.update(1)
-                
-                abort = False
-                
-                def error_callback(err):
-                    log.critical("Error in worker thread ")
-                    log.critical(str(err))
-                    nonlocal abort
-                    abort = True
-                
-                async_results = []
-                # TODO perhaps perform this in batches (e.g. submit 10k intervals,
-                #  wait for all to finish, then submit the next 10k, etc...)
-                #  instead of submitting every interval into the queue and then waiting
-                #  for all of them to finish.
-                #  That would allow for a more reasonable timeout.
-                for interval in intervals_gen:
-                    if abort:
-                        raise pycoMethError("Aborting due to error in worker thread")
-                    ar = pool.apply_async(
-                        worker_function,
-                        args=[interval],
-                        callback=callback,
-                        error_callback=error_callback,
-                    )
-                    async_results.append(ar)
-                
-                for i, ar in enumerate(async_results):
-                    if abort:
-                        break
-                    ar.wait(timeout=3 * 24 * 3600)
-            
-            # Exit condition
-            if not stats_results.res_list:
-                log.info("No valid p-Value could be computed")
-            
-            else:
-                # Convert results to dataframe and correct pvalues for multiple tests
-                log.info("Adjust pvalues")
-                stats_results.multitest_adjust()
-
-                rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
-                rewriter.write_adjusted_pvalues(stats_results.res_list)
-    
-    except:
-        writer.abort()
-        raise
+                else:
+                    # Convert results to dataframe and correct pvalues for multiple tests
+                    log.info("Adjust pvalues")
+                    stats_results.multitest_adjust()
+                    
+                    rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
+                    rewriter.write_adjusted_pvalues(stats_results.res_list)
     finally:
         # Print counters
         log_dict(stats_results.counter, log.info, "Results summary")
