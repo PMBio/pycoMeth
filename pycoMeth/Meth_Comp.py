@@ -9,14 +9,13 @@ from math import sqrt
 import fileinput
 
 # Third party imports
-import scipy.sparse
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
 from scipy.stats import kruskal, mannwhitneyu, wilcoxon, fisher_exact, chi2_contingency
 from statsmodels.stats.multitest import multipletests
 from multiprocessing import Pool
-from meth5.meth5 import MetH5File
+from meth5 import MetH5File
 
 # Local imports
 from pycoMeth.common import *
@@ -566,17 +565,16 @@ def Meth_Comp(
                 except:
                     writer.abort()
                     raise
-                # Exit condition
-                if not stats_results.res_list:
-                    log.info("No valid p-Value could be computed")
+            # Exit condition
+            if not stats_results.res_list:
+                log.info("No valid p-Value could be computed")
+            else:
+                # Convert results to dataframe and correct pvalues for multiple tests
+                log.info("Adjust pvalues")
+                stats_results.multitest_adjust()
                 
-                else:
-                    # Convert results to dataframe and correct pvalues for multiple tests
-                    log.info("Adjust pvalues")
-                    stats_results.multitest_adjust()
-                    
-                    rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
-                    rewriter.write_adjusted_pvalues(stats_results.res_list)
+                rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
+                rewriter.write_adjusted_pvalues(stats_results.res_list)
     finally:
         # Print counters
         log_dict(stats_results.counter, log.info, "Results summary")
