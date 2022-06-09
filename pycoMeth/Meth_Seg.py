@@ -120,7 +120,7 @@ def worker_reader(
         
         for chunk in chunks:
             values_container = chrom_container.get_chunk(chunk)
-            chunk_start, chunk_end = values_container.start, values_container.end
+            chunk_start, chunk_end = values_container.chromosome.h5group["chunk_ranges"][chunk]
             met_matrix = load_met_matrix(firstfile.name, values_container, read_groups_keys, read_groups_to_include)
             
             for other_m5file in m5files[1:]:
