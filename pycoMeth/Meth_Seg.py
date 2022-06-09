@@ -141,7 +141,6 @@ def worker_reader(
                 window_end = window_start + window_size
                 logging.debug(f"Submitting window {window_start}-{window_end}")
                 sub_matrix = met_matrix.get_submatrix(window_start, window_end)
-                print("Yielding sub matrix: ", set(sub_matrix.read_samples))
                 input_queue.put((sub_matrix, progress_per_window))
         
 
