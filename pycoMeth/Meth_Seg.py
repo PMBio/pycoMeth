@@ -118,18 +118,19 @@ def worker_reader(
         
         for chunk in chunks:
             values_container = chrom_container.get_chunk(chunk)
+            chunk_start, chunk_end = values_container.start, values_container.end
             met_matrix = load_met_matrix(firstfile.name, values_container, read_groups_keys, read_groups_to_include)
-            other_ranges = values_container.get_ranges()
             
             for other_m5file in m5files[1:]:
                 with MetH5File(other_m5file, "r", chunk_size=chunk_size) as other_m5:
-                    other_values_container = other_m5[chromosome].get_values_in_range(
-                        other_ranges[0, 0], other_ranges[-1, 1]
-                    )
+                    other_values_container = other_m5[chromosome].get_values_in_range(chunk_start, chunk_end)
                     other_met_matrix = load_met_matrix(
                         other_m5file.name, other_values_container, read_groups_keys, read_groups_to_include
                     )
-                    if other_met_matrix.met_matrix.shape[0] > 0:
+                    if met_matrix.met_matrix.shape[0] == 0:
+                        # First file had no data in the requested samples
+                        met_matrix = other_met_matrix
+                    elif other_met_matrix.met_matrix.shape[0] > 0:
                         met_matrix = met_matrix.merge(other_met_matrix, sample_names_mode="keep")
             
             if read_groups_keys is None and len(m5files) == 1:
@@ -142,7 +143,7 @@ def worker_reader(
                 logging.debug(f"Submitting window {window_start}-{window_end}")
                 sub_matrix = met_matrix.get_submatrix(window_start, window_end)
                 input_queue.put((sub_matrix, progress_per_window))
-        
+
 
 def validate_chromosome_selection(m5file: Path, chromosome: str, chunk_size: int):
     with MetH5File(m5file, "r", chunk_size=chunk_size) as m5:
