@@ -5,7 +5,7 @@ import logging
 
 import tqdm
 import numpy as np
-from meth5.meth5 import MetH5File, MethlyationValuesContainer
+from meth5 import MetH5File, MethlyationValuesContainer
 from meth5.sparse_matrix import SparseMethylationMatrixContainer
 
 from pycoMeth.meth_seg.segments_csv_io import SegmentsWriterBED, SegmentsWriterBedGraph

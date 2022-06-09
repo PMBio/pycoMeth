@@ -4,7 +4,7 @@
 # Standard library imports
 import itertools
 import random
-from typing import IO, List, Generator, Dict, Any
+from typing import IO, List, Dict, Any
 from math import sqrt
 import fileinput
 
