@@ -87,6 +87,8 @@ def load_met_matrix(
     met_matrix: SparseMethylationMatrixContainer = values_container.to_sparse_methylation_matrix(
         read_read_names=False, read_groups_key=read_groups_keys
     )
+    if met_matrix.shape[0] == 0:
+        return met_matrix
     
     if read_groups_keys is None:
         """Read groups are read names (read-level mode)"""
