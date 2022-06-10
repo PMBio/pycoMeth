@@ -1,7 +1,10 @@
+import logging
+
 from meth5 import MetH5File
 
 from typing import List, Tuple, Dict
 from pycoMeth.CoordGen import Coord
+
 
 def read_sample_ids_from_read_groups(h5_file_list, read_group_key, labels=None):
     rg_dict = {}
@@ -17,12 +20,12 @@ def read_sample_ids_from_read_groups(h5_file_list, read_group_key, labels=None):
     else:
         return [k for k in rg_dict]
 
+
 class MetH5Loader:
     def __init__(self, h5_read_groups_key: str, sample_id_list: List, h5_file_list: List):
         self.h5_read_groups_key = h5_read_groups_key
         self.sample_hf_files: Dict[str, MetH5File] = {}
         self.llr_threshold = 2.0  # TODO expose parameter
-        self.min_diff_bs = 0.25  # TODO expose parameter
         
         if h5_read_groups_key is None:
             for sample_id, h5_file in zip(sample_id_list, h5_file_list):

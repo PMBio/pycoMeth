@@ -1,10 +1,10 @@
 version:
   major: 2
   minor: 2
-  micro: 0
+  micro: 1
   a: null
   b: null
-  rc: null
+  rc: 1
   post: null
   dev: null
 managed_values:
@@ -30,14 +30,14 @@ managed_values:
   - tqdm>=4.60.0
   - colorlog>=4.1.0
   - nbformat>=4.2.0
-  - meth5>=1.1.0
+  - meth5>=1.1.1
   __classifiers__:
   - 'Development Status :: 4 - Beta'
   - 'Intended Audience :: Science/Research'
   - 'Topic :: Scientific/Engineering :: Bio-Informatics'
-  - 'License :: OSI Approved :: GNU General Public License v3 (GPLv3)'
+  - 'License :: OSI Approved :: MIT License'
   - 'Programming Language :: Python :: 3'
-  __citation__: Rene Snajder. (2021, May 4). snajder-r/meth5format
+  __citation__: Rene Snajder. (2021, May 4). snajder-r/pycometh
 managed_files:
   versipy_templates/setup.py: setup.py
   versipy_templates/README.md: README.md

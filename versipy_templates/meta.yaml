@@ -29,19 +29,16 @@ test:
   imports:
     - pycoMeth.FileParser
     - pycoMeth.CoordGen
-    - pycoMeth.CpG_Aggregate
-    - pycoMeth.Interval_Aggregate
     - pycoMeth.Meth_Comp
+    - pycoMeth.Meth_Seg
     - pycoMeth.Comp_Report
-    - pycoMeth.CGI_Finder
   commands:
-    - pycoMeth CpG_Aggregate --help
-    - pycoMeth Interval_Aggregate --help
     - pycoMeth Meth_Comp --help
+    - pycoMeth Meth_Seg --help
     - pycoMeth Comp_Report --help
     - pycoMeth CGI_Finder --help
 
 about:
   home: "__package_url__"
-  license: "GPL"
+  license: "MIT"
   summary: "DNA methylation analysis for Oxford Nanopore DNA sequencing datasets downstream to Nanopolish"

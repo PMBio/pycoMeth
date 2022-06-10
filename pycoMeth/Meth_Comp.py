@@ -104,7 +104,7 @@ class MethCompWorker:
         for sample in range(num_samples):
             unique_reads = list(set(raw_read_list[sample]))
             if len(unique_reads) > 1000:
-                # excessive coverage indicates weird mapping - we will subsample
+                # excessive coverage indicates weird mapping - we will subsample to not cause a huge memory spike
                 unique_reads = [r for r in unique_reads if random.random() < 100 / len(unique_reads)]
             met_list = [
                 sum(
@@ -334,7 +334,6 @@ def Meth_Comp(
     worker_processes: int = 4,
     hypothesis: str = "bs_diff",
     do_independent_hypothesis_weighting: bool = False,
-    no_raw_llrs_output=True,
     **kwargs,
 ):
     """Compare methylation values for each CpG positions or intervals

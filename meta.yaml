@@ -1,4 +1,4 @@
-{% set version = "2.2.0" %}
+{% set version = "2.2.1rc1" %}
 {% set name = "pycoMeth" %}
 
 package:
@@ -17,9 +17,10 @@ build:
 
 requirements:
   build:
-    - python>=3.7
+    - python==3.7
     - pip>=19.2.1
     - ripgrep>=11.0.1
+    - cython
   run:
     - numpy>=1.19.2
     - scipy==1.4.1
@@ -32,20 +33,22 @@ requirements:
     - colorlog>=4.1.0
     - nbformat>=4.2.0
     - meth5>=1.1.0
+    - h5py=2.9.0
 
 test:
   imports:
     - pycoMeth.FileParser
     - pycoMeth.CoordGen
     - pycoMeth.Meth_Comp
+    - pycoMeth.Meth_Seg
     - pycoMeth.Comp_Report
-    - pycoMeth.CGI_Finder
   commands:
     - pycoMeth Meth_Comp --help
+    - pycoMeth Meth_Seg --help
     - pycoMeth Comp_Report --help
     - pycoMeth CGI_Finder --help
 
 about:
   home: "https://github.com/snajder-r/pycoMeth,"
-  license: "GPL"
+  license: "MIT"
   summary: "DNA methylation analysis for Oxford Nanopore DNA sequencing datasets downstream to Nanopolish"
