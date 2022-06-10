@@ -6,7 +6,7 @@ branches:
   - main
   - dev
 install:
-  - pip install pycometh
+  - pip install pycometh importlib-metadata=4.11.3
 script: true
 deploy:
   - provider: pypi
