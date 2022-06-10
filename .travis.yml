@@ -5,8 +5,10 @@ branches:
   only:
   - main
   - dev
+before_install:
+  - pip install -U importlib_metadata
 install:
-  - pip install pycometh importlib-metadata==4.11.3
+  - pip install pycometh
 script: true
 deploy:
   - provider: pypi
