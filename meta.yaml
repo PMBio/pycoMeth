@@ -1,4 +1,4 @@
-{% set version = "2.2.1rc1" %}
+{% set version = "2.2.1" %}
 {% set name = "pycoMeth" %}
 
 package:
@@ -32,8 +32,7 @@ requirements:
     - tqdm>=4.60.0
     - colorlog>=4.1.0
     - nbformat>=4.2.0
-    - meth5>=1.1.0
-    - h5py=2.9.0
+    - meth5>=1.1.1
 
 test:
   imports:

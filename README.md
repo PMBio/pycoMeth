@@ -10,7 +10,7 @@
 [![Anaconda Downloads](https://anaconda.org/snajder-r/pycometh/badges/downloads.svg)](https://anaconda.org/snajder-r/pycometh)
 
 ---
-Version in this branch: 2.2.1rc1
+Version in this branch: 2.2.1
 
 ---
 

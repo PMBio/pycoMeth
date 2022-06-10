@@ -4,7 +4,7 @@ version:
   micro: 1
   a: null
   b: null
-  rc: 1
+  rc: null
   post: null
   dev: null
 managed_values:
