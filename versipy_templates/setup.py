@@ -20,7 +20,7 @@ setup(
     author="__author_name__",
     author_email="__author_email__",
     license="__package_licence__",
-    python_requires=">=__minimal_python__",
+    python_requires="==__minimal_python__",
     classifiers=[
         __@{,
         ::"classifiers"}__

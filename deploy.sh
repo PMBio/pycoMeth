@@ -12,7 +12,7 @@ echo "compile package from setup.py"
 python setup.py sdist
 
 echo "Uploading to pypi..."
-#twine upload $repostring dist/*
+twine upload $repostring dist/*
 
 if [[ ! -z $repostring ]]; then
 	echo "Testing complete - not attempting to upload to conda"

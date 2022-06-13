@@ -20,7 +20,7 @@ setup(
     author="Rene Snajder",
     author_email="r.snajder@dkfz-heidelberg.de",
     license="GPL",
-    python_requires=">=3.7",
+    python_requires="==3.7",
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
@@ -29,17 +29,17 @@ setup(
         "Programming Language :: Python :: 3"
     ],
     install_requires=[
-        "numpy>=1.19.2",
+        "numpy==1.22.2",
         "scipy==1.4.1",
-        "statsmodels>=0.11.1",
-        "pandas>=1.1.3",
-        "Jinja2>=2.11.1",
-        "plotly>=4.7.1",
-        "pyfaidx>=0.5.8",
-        "tqdm>=4.60.0",
-        "colorlog>=4.1.0",
-        "nbformat>=4.2.0",
-        "meth5>=1.1.1"
+        "statsmodels==0.13.2",
+        "pandas==1.4.1",
+        "Jinja2==3.0.3",
+        "plotly==5.6.0",
+        "pyfaidx==0.6.4",
+        "tqdm==4.62.3",
+        "colorlog==6.6.0",
+        "nbformat==5.1.3",
+        "meth5==1.1.1"
     ],
     packages=["pycoMeth", "pycoMeth.meth_seg"],
     package_dir={"pycoMeth": "pycoMeth", "pycoMeth.meth_seg":"pycoMeth/meth_seg"},

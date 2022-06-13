@@ -28,13 +28,12 @@ Please be aware that `pycoMeth` is a research package that is still under develo
 ---
 ### Installation
 
-Install either using conda:
 
-    conda install -c snajder-r -c bioconda pycometh
-
-Or using pip:
+Install using pip:
     
     pip install pycometh
+
+**NOTE** the conda distribution is currently behind until [conda issue #11442](https://github.com/conda/conda/issues/11442) is fixed.
 
 ---
 
