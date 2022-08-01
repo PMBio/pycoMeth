@@ -582,6 +582,49 @@ def Meth_Comp(
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~StatsResults HELPER CLASS~~~~~~~~~~~~~~~~~~~~~~~~~~~#
 
 
+class DictList:
+    def __init__(self, universal_key):
+        self.dict = {}
+        self.universal_key = universal_key
+        pass
+    
+    def __len__(self):
+        if len(self.dict) == 0:
+            return 0
+        
+        return len(self.dict[self.universal_key])
+    
+    def __getitem__(self, i):
+        class ListAccessor:
+            def __init__(innerSelf):
+                self.i = 0
+            
+            def __getitem__(innerSelf, key):
+                return self.dict[key][self.i]
+            
+            def __setitem__(innerSelf, key, value):
+                self.dict[key][self.i] = value
+        
+        return ListAccessor()
+    
+    def __setitem__(self, i, d: Dict):
+        for key, val in d.items():
+            self.dict[key][i] = val
+    
+    def append(self, d):
+        if len(self.dict) == 0:
+            self.dict = {key: [val] for key, val in d.items()}
+        else:
+            if len(set(d.keys()).intersection(set(self.dict.keys()))) != len(d.keys()):
+                raise ValueError("All keys must be present in all entries")
+            for key, val in d.items():
+                self.dict[key].append(val)
+    
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+
 class StatsResults:
     def __init__(
         self,
@@ -598,7 +641,7 @@ class StatsResults:
         self.do_independent_hypothesis_weighting = do_independent_hypothesis_weighting
         
         # Init self collections
-        self.res_list = []
+        self.res_list =  DictList("pvalue")
         self.counter = Counter()
         
         # Get minimal non-zero float value
@@ -939,15 +982,6 @@ def bed_intervals_gen(coordgen, interval_bed_fn) -> Generator[Coord, None, None]
         comment="track",
         quiet=True,
     ) as bed:
-        
-        prev_ct = None
         for line in bed:
             ct = coordgen(line.chrom, line.start, line.end)
-            if prev_ct and ct < prev_ct:
-                raise ValueError(
-                    "Unsorted coordinate found in bed file {} found after {}. Chromosomes have to be ordered as in fasta reference file".format(
-                        ct, prev_ct
-                    )
-                )
-            prev_ct = ct
             yield (ct)
