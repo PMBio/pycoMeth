@@ -1,22 +1,16 @@
-import time
 from pathlib import Path
-from typing import IO, Iterable, List, Optional
+from typing import IO, List
 from multiprocessing import Queue, Process
-import argparse
 import logging
 
 import tqdm
-import pandas as pd
 import numpy as np
-from meth5.meth5 import MetH5File
+from meth5 import MetH5File, MethlyationValuesContainer
 from meth5.sparse_matrix import SparseMethylationMatrixContainer
 
-from pycoMeth.meth_seg.emissions import BernoulliPosterior
-from pycoMeth.meth_seg.hmm import SegmentationHMM
-from pycoMeth.meth_seg.postprocessing import cleanup_segmentation
 from pycoMeth.meth_seg.segments_csv_io import SegmentsWriterBED, SegmentsWriterBedGraph
-from pycoMeth.meth_seg.math import llr_to_p
 from pycoMeth.meth_seg.segment import segment
+from pycoMeth.common import pycoMethError, get_logger
 
 
 def worker_segment(input_queue: Queue, output_queue: Queue, max_segments_per_window: int):
@@ -76,10 +70,37 @@ def worker_output(
             llrs, segments, genomic_starts, genomic_ends, samples = seg_result
             
             for writer in writers:
-                writer.write_segments_llr(llrs, segments, genomic_starts, genomic_ends, samples, compute_diffmet=print_diff_met)
+                writer.write_segments_llr(
+                    llrs, segments, genomic_starts, genomic_ends, samples, compute_diffmet=print_diff_met
+                )
             pbar.update(fraction)
         pbar.n = 100
         pbar.refresh()
+
+
+def load_met_matrix(
+    filename: str,
+    values_container: MethlyationValuesContainer,
+    read_groups_keys: List[str],
+    read_groups_to_include: List[str],
+) -> SparseMethylationMatrixContainer:
+    met_matrix: SparseMethylationMatrixContainer = values_container.to_sparse_methylation_matrix(
+        read_read_names=False, read_groups_key=read_groups_keys
+    )
+    if met_matrix.shape[0] == 0:
+        return met_matrix
+    
+    if read_groups_keys is None:
+        """Read groups are read names (read-level mode)"""
+        met_matrix.read_samples = np.array([f"{filename}" for _ in met_matrix.read_names])
+    else:
+        if read_groups_to_include is not None:
+            """Filter out only allowed read groups"""
+            idx = np.array([r in read_groups_to_include for r in met_matrix.read_samples])
+            met_matrix = met_matrix.get_submatrix_from_read_mask(idx)
+        """Read groups are read from h5 file"""
+        met_matrix.read_samples = np.array([f"{filename}_{sn}" for sn in met_matrix.read_samples])
+    return met_matrix
 
 
 def worker_reader(
@@ -91,6 +112,7 @@ def worker_reader(
     chunks: List[int],
     progress_per_chunk: float,
     read_groups_keys: List[str],
+    read_groups_to_include: List[str],
 ):
     firstfile = m5files[0]
     with MetH5File(firstfile, "r", chunk_size=chunk_size) as m5:
@@ -98,37 +120,20 @@ def worker_reader(
         
         for chunk in chunks:
             values_container = chrom_container.get_chunk(chunk)
-            met_matrix: SparseMethylationMatrixContainer = values_container.to_sparse_methylation_matrix(
-                read_read_names=False, read_groups_key=read_groups_keys
-            )
-            
-            if len(m5files) > 0:
-                if read_groups_keys is None:
-                    met_matrix.read_samples = np.array([f"{firstfile.name}" for _ in met_matrix.read_names])
-                else:
-                    met_matrix.read_samples = np.array([f"{firstfile.name}_{sn}" for sn in met_matrix.read_samples])
+            chunk_start, chunk_end = values_container.chromosome.h5group["chunk_ranges"][chunk]
+            met_matrix = load_met_matrix(firstfile.name, values_container, read_groups_keys, read_groups_to_include)
             
             for other_m5file in m5files[1:]:
                 with MetH5File(other_m5file, "r", chunk_size=chunk_size) as other_m5:
-                    other_ranges = values_container.get_ranges()
-                    other_values_container = other_m5[chromosome].get_values_in_range(
-                        other_ranges[0, 0], other_ranges[-1, 1]
+                    other_values_container = other_m5[chromosome].get_values_in_range(chunk_start, chunk_end)
+                    other_met_matrix = load_met_matrix(
+                        other_m5file.name, other_values_container, read_groups_keys, read_groups_to_include
                     )
-                    other_met_matrix = other_values_container.to_sparse_methylation_matrix(
-                        read_read_names=False, read_groups_key=read_groups_keys
-                    )
-                    if other_met_matrix.met_matrix.shape[0] <= 1:
-                        continue
-                        
-                    if read_groups_keys is None:
-                        other_met_matrix.read_samples = np.array(
-                            [f"{other_m5file.name}" for _ in other_met_matrix.read_names]
-                        )
-                    else:
-                        other_met_matrix.read_samples = np.array(
-                            [f"{other_m5file.name}_{sn}" for sn in other_met_matrix.read_samples]
-                        )
-                    met_matrix = met_matrix.merge(other_met_matrix, sample_names_mode="keep")
+                    if met_matrix.met_matrix.shape[0] == 0:
+                        # First file had no data in the requested samples
+                        met_matrix = other_met_matrix
+                    elif other_met_matrix.met_matrix.shape[0] > 0:
+                        met_matrix = met_matrix.merge(other_met_matrix, sample_names_mode="keep")
             
             if read_groups_keys is None and len(m5files) == 1:
                 met_matrix.read_samples = met_matrix.read_names
@@ -167,8 +172,11 @@ def Meth_Seg(
     window_size: int = 300,
     max_segments_per_window: int = 10,
     read_groups_keys: [str] = None,
+    read_groups_to_include: [str] = None,
     print_diff_met: bool = False,
     output_bedgraph_fn: str = None,
+    verbose: bool = False,
+    quiet: bool = False,
     **kwargs,
 ):
     """
@@ -203,6 +211,10 @@ def Meth_Seg(
     * output_bedgraph_fn
         Base name for bedgraphs to be written. One bedgraph per sample/read_group will be created.
     """
+    log = get_logger(name="pycoMeth_Meth_Seg", verbose=verbose, quiet=quiet)
+    log.debug("Checking options and input files")
+    if read_groups_to_include is not None and read_groups_keys is None:
+        raise pycoMethError("read_groups_to_include defined, but missing read_groups_keys parameter")
     
     input_queue = Queue(maxsize=workers * 5)
     output_queue = Queue(maxsize=workers * 100)
@@ -244,6 +256,7 @@ def Meth_Seg(
                 p_chunks,
                 progress_per_chunk,
                 read_groups_keys,
+                read_groups_to_include,
             ),
         )
         for p_chunks in chunk_per_process

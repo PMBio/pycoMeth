@@ -71,6 +71,8 @@ class FileParser:
         
         # Input file opening
         self.f_list = self._open_files(fn)
+        if len(self.f_list) == 0:
+            raise ValueError(f"File does not exist {fn}")
         
         # Init extra private variables
         self._previous_index = -1
@@ -289,7 +291,7 @@ class FileParser:
                         self.log.debug("Opening file {} in normal mode".format(fn))
                         fp = open(fn, "r")
                     f_list.append((fn, fp))
-            
+
             return f_list
         
         else:

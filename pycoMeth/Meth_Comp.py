@@ -4,19 +4,18 @@
 # Standard library imports
 import itertools
 import random
-from typing import IO, List, Generator, Dict, Any
+from typing import IO, List, Dict, Any, Generator
 from math import sqrt
 import fileinput
 
 # Third party imports
-import scipy.sparse
 from tqdm import tqdm
 import numpy as np
 import pandas as pd
 from scipy.stats import kruskal, mannwhitneyu, wilcoxon, fisher_exact, chi2_contingency
 from statsmodels.stats.multitest import multipletests
 from multiprocessing import Pool
-from meth5.meth5 import MetH5File
+from meth5 import MetH5File
 
 # Local imports
 from pycoMeth.common import *
@@ -105,7 +104,7 @@ class MethCompWorker:
         for sample in range(num_samples):
             unique_reads = list(set(raw_read_list[sample]))
             if len(unique_reads) > 1000:
-                # excessive coverage indicates weird mapping - we will subsample
+                # excessive coverage indicates weird mapping - we will subsample to not cause a huge memory spike
                 unique_reads = [r for r in unique_reads if random.random() < 100 / len(unique_reads)]
             met_list = [
                 sum(
@@ -335,7 +334,6 @@ def Meth_Comp(
     worker_processes: int = 4,
     hypothesis: str = "bs_diff",
     do_independent_hypothesis_weighting: bool = False,
-    no_raw_llrs_output=True,
     **kwargs,
 ):
     """Compare methylation values for each CpG positions or intervals
@@ -566,23 +564,65 @@ def Meth_Comp(
                 except:
                     writer.abort()
                     raise
-                # Exit condition
-                if not stats_results.res_list:
-                    log.info("No valid p-Value could be computed")
+            # Exit condition
+            if not stats_results.res_list:
+                log.info("No valid p-Value could be computed")
+            else:
+                # Convert results to dataframe and correct pvalues for multiple tests
+                log.info("Adjust pvalues")
+                stats_results.multitest_adjust()
                 
-                else:
-                    # Convert results to dataframe and correct pvalues for multiple tests
-                    log.info("Adjust pvalues")
-                    stats_results.multitest_adjust()
-                    
-                    rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
-                    rewriter.write_adjusted_pvalues(stats_results.res_list)
+                rewriter = Comp_ReWriter([f for f in (output_bed_fn, output_tsv_fn) if f is not None])
+                rewriter.write_adjusted_pvalues(stats_results.res_list)
     finally:
         # Print counters
         log_dict(stats_results.counter, log.info, "Results summary")
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~StatsResults HELPER CLASS~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+
+
+class DictList:
+    def __init__(self, universal_key):
+        self.dict = {}
+        self.universal_key = universal_key
+        pass
+    
+    def __len__(self):
+        if len(self.dict) == 0:
+            return 0
+        
+        return len(self.dict[self.universal_key])
+    
+    def __getitem__(self, i):
+        class ListAccessor:
+            def __init__(innerSelf):
+                self.i = 0
+            
+            def __getitem__(innerSelf, key):
+                return self.dict[key][self.i]
+            
+            def __setitem__(innerSelf, key, value):
+                self.dict[key][self.i] = value
+        
+        return ListAccessor()
+    
+    def __setitem__(self, i, d: Dict):
+        for key, val in d.items():
+            self.dict[key][i] = val
+    
+    def append(self, d):
+        if len(self.dict) == 0:
+            self.dict = {key: [val] for key, val in d.items()}
+        else:
+            if len(set(d.keys()).intersection(set(self.dict.keys()))) != len(d.keys()):
+                raise ValueError("All keys must be present in all entries")
+            for key, val in d.items():
+                self.dict[key].append(val)
+    
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
 
 
 class StatsResults:
@@ -601,7 +641,7 @@ class StatsResults:
         self.do_independent_hypothesis_weighting = do_independent_hypothesis_weighting
         
         # Init self collections
-        self.res_list = []
+        self.res_list =  DictList("pvalue")
         self.counter = Counter()
         
         # Get minimal non-zero float value
@@ -942,15 +982,6 @@ def bed_intervals_gen(coordgen, interval_bed_fn) -> Generator[Coord, None, None]
         comment="track",
         quiet=True,
     ) as bed:
-        
-        prev_ct = None
         for line in bed:
             ct = coordgen(line.chrom, line.start, line.end)
-            if prev_ct and ct < prev_ct:
-                raise ValueError(
-                    "Unsorted coordinate found in bed file {} found after {}. Chromosomes have to be ordered as in fasta reference file".format(
-                        ct, prev_ct
-                    )
-                )
-            prev_ct = ct
             yield (ct)

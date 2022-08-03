@@ -5,6 +5,8 @@ branches:
   only:
   - main
   - dev
+before_install:
+  - pip install -U importlib_metadata
 install:
   - pip install pycometh
 script: true

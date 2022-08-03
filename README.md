@@ -3,7 +3,6 @@
 [![GitHub license](https://img.shields.io/github/license/a-slide/pycoMeth.svg)](https://github.com/a-slide/pycoMeth/blob/master/LICENSE)
 [![Language](https://img.shields.io/badge/Language-Python3.7+-yellow.svg)](https://www.python.org/)
 [![DOI](https://img.shields.io/badge/DOI-10.1101%2F2022.02.16.480699-red)](https://www.biorxiv.org/content/10.1101/2022.02.16.480699v1)
-[![Build Status](https://travis-ci.com/a-slide/pycoMeth.svg?branch=master)](https://travis-ci.com/a-slide/pycoMeth)
 
 [![PyPI version](https://badge.fury.io/py/pycoMeth.svg)](https://badge.fury.io/py/pycoMeth)
 [![PyPI downloads](https://pepy.tech/badge/pycoMeth)](https://pepy.tech/project/pycoMeth)
@@ -11,7 +10,7 @@
 [![Anaconda Downloads](https://anaconda.org/snajder-r/pycometh/badges/downloads.svg)](https://anaconda.org/snajder-r/pycometh)
 
 ---
-Version in this branch: 2.1.1
+Version in this branch: 2.2.1
 
 ---
 
@@ -29,13 +28,12 @@ Please be aware that `pycoMeth` is a research package that is still under develo
 ---
 ### Installation
 
-Install either using conda:
 
-    conda install -c snajder-r -c bioconda pycometh
-
-Or using pip:
+Install using pip:
     
     pip install pycometh
+
+**NOTE** the conda distribution is currently behind until [conda issue #11442](https://github.com/conda/conda/issues/11442) is fixed.
 
 ---
 
