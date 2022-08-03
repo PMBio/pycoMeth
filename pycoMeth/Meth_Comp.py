@@ -340,7 +340,7 @@ def Meth_Comp(
 ):
     """Compare methylation values for each CpG positions or intervals
     between n samples and perform a statistical test to evaluate if the
-    positions are significantly different. For 2 samples a Mann_Withney
+    positions are significantly different. For 2 samples a Mann_Whitney
     test is performed otherwise multiples samples are compared with a
     Kruskal Wallis test. pValues are adjusted for multiple tests using
     the Benjamini & Hochberg procedure for controlling the false
@@ -438,7 +438,7 @@ def Meth_Comp(
             if min_samples < 3:
                 log.debug("Automatically raise number of minimal samples to 3")
                 min_samples = 3
-    # 2 values = Mann_Withney test
+    # 2 values = Mann_Whitney test
     elif all_samples == 2:
         if min_samples:
             log.debug("No missing samples allowed for 2 samples comparison")
@@ -452,7 +452,7 @@ def Meth_Comp(
                 pvalue_method = "fisher_exact"
             else:
                 pvalue_method = "MW"
-                log.debug("Pairwise comparison mode (Mann_Withney test)")
+                log.debug("Pairwise comparison mode (Mann_Whitney test)")
     else:
         raise pycoMethError("Meth_Comp needs at least 2 input files")
     
