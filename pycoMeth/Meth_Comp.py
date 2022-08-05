@@ -597,13 +597,13 @@ class DictList:
     def __getitem__(self, i):
         class ListAccessor:
             def __init__(innerSelf):
-                self.i = 0
+                innerSelf.i = i
             
             def __getitem__(innerSelf, key):
-                return self.dict[key][self.i]
+                return self.dict[key][innerSelf.i]
             
             def __setitem__(innerSelf, key, value):
-                self.dict[key][self.i] = value
+                self.dict[key][innerSelf.i] = value
         
         return ListAccessor()
     
@@ -668,7 +668,6 @@ class StatsResults:
         
         for c in counters_to_increase:
             self.counter[c] += 1
-        
         reduced_res = {
             "pvalue": res["pvalue"],
             "adj_pvalue": res["adj_pvalue"],
@@ -692,7 +691,7 @@ class StatsResults:
                 pvalue_list.append(res["pvalue"])
                 if self.do_independent_hypothesis_weighting:
                     ihw_weight_list.append(res["ihw_weight"])
-        
+        print(pvalue_list)
         # Adjust values
         if len(pvalue_list) == 0:
             return
