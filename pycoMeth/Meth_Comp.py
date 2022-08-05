@@ -691,7 +691,7 @@ class StatsResults:
                 pvalue_list.append(res["pvalue"])
                 if self.do_independent_hypothesis_weighting:
                     ihw_weight_list.append(res["ihw_weight"])
-        print(pvalue_list)
+
         # Adjust values
         if len(pvalue_list) == 0:
             return
