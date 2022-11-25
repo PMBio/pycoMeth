@@ -39,15 +39,15 @@ Install using pip:
 
 ### pycoMeth workflow
 
-![Workflow](http://snajder-r.github.io/pycometh/images/overview.svg)
+![Workflow](https://snajder-r.github.io/pycometh/images/overview.svg)
 
 
 ### pycoMeth example HTML report
 
 
-[Example HTML report 1](http://snajder-r.github.io/pycometh/examples/pycometh_report1.html)
+[Example HTML report 1](https://snajder-r.github.io/pycoMeth/examples/pycometh_report1.html)
 
-[Example HTML report 2](http://snajder-r.github.io/pycometh/examples/pycometh_report2.html)
+[Example HTML report 2](https://snajder-r.github.io/pycometh/examples/pycometh_report2.html)
 
 ---
 
