@@ -39,7 +39,7 @@ Install using pip:
 
 ### pycoMeth workflow
 
-![Workflow](https://snajder-r.github.io/pycometh/images/overview.svg)
+![Workflow](https://snajder-r.github.io/pycoMeth/images/overview.svg)
 
 
 ### pycoMeth example HTML report
