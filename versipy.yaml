@@ -1,7 +1,7 @@
 version:
   major: 2
   minor: 2
-  micro: 1
+  micro: 2
   a: null
   b: null
   rc: null
@@ -30,7 +30,7 @@ managed_values:
   - tqdm==4.62.3
   - colorlog==6.6.0
   - nbformat==5.1.3
-  - meth5==1.1.1
+  - meth5>=1.1.1
   __classifiers__:
   - 'Development Status :: 4 - Beta'
   - 'Intended Audience :: Science/Research'

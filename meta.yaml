@@ -1,4 +1,4 @@
-{% set version = "2.2.1" %}
+{% set version = "2.2.2" %}
 {% set name = "pycoMeth" %}
 
 package:
@@ -13,11 +13,12 @@ build:
   script: "pip install {{ name }}-{{ version }}.tar.gz --no-deps --ignore-installed -vv "
   entry_points:
     - pycoMeth=pycoMeth.__main__:main
+    - pycometh=pycoMeth.__main__:main
   noarch: "python"
 
 requirements:
   build:
-    - python==3.7
+    - python>=3.7
     - pip>=19.2.1
     - ripgrep>=11.0.1
     - cython
@@ -32,7 +33,7 @@ requirements:
     - tqdm==4.62.3
     - colorlog==6.6.0
     - nbformat==5.1.3
-    - meth5==1.1.1
+    - meth5>=1.1.1
 
 test:
   imports:

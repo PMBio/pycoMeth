@@ -13,11 +13,12 @@ build:
   script: "pip install {{ name }}-{{ version }}.tar.gz --no-deps --ignore-installed -vv "
   entry_points:
     - pycoMeth=pycoMeth.__main__:main
+    - pycometh=pycoMeth.__main__:main
   noarch: "python"
 
 requirements:
   build:
-    - python==__minimal_python__
+    - python>=__minimal_python__
     - pip>=19.2.1
     - ripgrep>=11.0.1
     - cython

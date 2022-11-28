@@ -10,7 +10,7 @@
 [![Anaconda Downloads](https://anaconda.org/snajder-r/pycometh/badges/downloads.svg)](https://anaconda.org/snajder-r/pycometh)
 
 ---
-Version in this branch: 2.2.1
+Version in this branch: 2.2.2
 
 ---
 
@@ -28,14 +28,17 @@ Please be aware that `pycoMeth` is a research package that is still under develo
 ---
 ### Installation
 
+Install either using conda:
 
-Install using pip:
+    conda install -c snajder-r -c bioconda -c conda-forge pycometh
+
+Or using pip:
     
     pip install pycometh
 
-**NOTE** the conda distribution is currently behind until [conda issue #11442](https://github.com/conda/conda/issues/11442) is fixed.
+### Documentation
 
----
+A more detailed usage documentation can be found at https://snajder-r.github.io/pycoMeth/
 
 ### pycoMeth workflow
 
@@ -43,7 +46,6 @@ Install using pip:
 
 
 ### pycoMeth example HTML report
-
 
 [Example HTML report 1](https://snajder-r.github.io/pycoMeth/examples/pycometh_report1.html)
 

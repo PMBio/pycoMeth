@@ -39,7 +39,7 @@ def main(args=None):
     sp_met_ms = sp_met.add_argument_group("Misc options")
     arg_from_docstr(sp_met_ms, f, "max_missing", "m")
     arg_from_docstr(sp_met_ms, f, "worker_processes", "w")
-    arg_from_docstr(sp_met_ms, f, "min_diff_llr", "l")
+    arg_from_docstr(sp_met_ms, f, "min_abs_llr", "l")
     arg_from_docstr(sp_met_ms, f, "sample_id_list", "s")
     arg_from_docstr(sp_met_ms, f, "pvalue_adj_method")
     arg_from_docstr(sp_met_ms, f, "pvalue_threshold")

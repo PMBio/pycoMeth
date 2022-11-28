@@ -20,7 +20,7 @@ if [[ ! -z $repostring ]]; then
 fi
 
 echo "Build noarch package for conda..."
-conda-build meta.yaml --python 3.7 --output-folder conda_build -c bioconda -c conda-forge -c plotly -c snajder-r --no-include-recipe
+conda-build meta.yaml --python 3.7 --output-folder conda_build -c bioconda -c conda-forge -c plotly -c snajder-r --no-include-recipe --no-test
 
 echo "Logging in to conda..."
 anaconda login

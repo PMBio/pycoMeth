@@ -32,7 +32,7 @@ class MethCompWorker:
         h5_read_groups_key,
         sample_id_list,
         h5_file_list,
-        min_diff_llr,
+        min_abs_llr,
         min_samples,
         pvalue_method,
         min_num_reads_per_interval,
@@ -40,7 +40,7 @@ class MethCompWorker:
         hypothesis,
         do_independent_hypothesis_weighting,
     ):
-        self.min_diff_llr = min_diff_llr
+        self.min_abs_llr = min_abs_llr
         self.min_samples = min_samples
         self.pvalue_method = pvalue_method
         self.min_pval = np.nextafter(float(0), float(1))
@@ -322,7 +322,7 @@ def Meth_Comp(
     interval_size: int = 1000,
     min_num_reads_per_interval: int = 10,
     max_missing: int = 0,
-    min_diff_llr: float = 2,
+    min_abs_llr: float = 2,
     sample_id_list: [str] = None,
     pvalue_adj_method: str = "fdr_bh",
     pvalue_threshold: float = 0.01,
@@ -363,7 +363,7 @@ def Meth_Comp(
          Path to write an more extensive result report in TSV format (At least 1 output file is required) (can be gzipped)
      * max_missing
          Max number of missing samples to perform the test
-     * min_diff_llr
+     * min_abs_llr
          Minimal llr boundary for negative and positive median llr.
          The test if only performed if at least one sample has a median llr above (methylated) and 1 sample has a median llr below (unmethylated)
      * sample_id_list
@@ -480,7 +480,7 @@ def Meth_Comp(
                         h5_read_groups_key=read_groups_key,
                         sample_id_list=sample_id_list,
                         h5_file_list=h5_file_list,
-                        min_diff_llr=min_diff_llr,
+                        min_abs_llr=min_abs_llr,
                         min_samples=min_samples,
                         pvalue_method=pvalue_method,
                         min_num_reads_per_interval=min_num_reads_per_interval,
@@ -498,7 +498,7 @@ def Meth_Comp(
                             h5_read_groups_key=read_groups_key,
                             sample_id_list=sample_id_list,
                             h5_file_list=h5_file_list,
-                            min_diff_llr=min_diff_llr,
+                            min_abs_llr=min_abs_llr,
                             min_samples=min_samples,
                             pvalue_method=pvalue_method,
                             min_num_reads_per_interval=min_num_reads_per_interval,
