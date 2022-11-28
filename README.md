@@ -1,4 +1,4 @@
-![pycoMeth](./docs/pictures/pycoMeth_long.png)
+![pycoMeth](https://snajder-r.github.io/pycoMeth/images/pycoMeth_long.png)
 
 [![GitHub license](https://img.shields.io/github/license/a-slide/pycoMeth.svg)](https://github.com/a-slide/pycoMeth/blob/master/LICENSE)
 [![Language](https://img.shields.io/badge/Language-Python3.7+-yellow.svg)](https://www.python.org/)
