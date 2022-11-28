@@ -28,16 +28,26 @@ Since pycoMeth version 2, input files need to be in [MetH5 format](https://githu
 
 ## Installation
 
+You can install the latest version either via pip
 
+```bash
+pip install pycoMeth
+```
+
+or via conda
+
+```bash
+conda install -c snajder-r -c bioconda -c conda-forge pycometh
+```
 
 ## Usage
 
 The pycoMeth package contains the following modules:
 
-* [CGI_Finder](CGI_Finder/usage): find CpG islands in a fasta file by using a sliding window and merging overlapping windows satisfying the CpG island definition.
-* [Meth_Seg](Meth_Seg/usage): Bayesian methylome segmentation algorithm
-* [Meth_Comp](Meth_Comp/usage): compare Methylation level between several samples 
-* [Comp_Report](Comp_Report/usage): generate an interactive HTML report for top significant differentially methylated intervals
+* [CGI_Finder](CGI_Finder.md): find CpG islands in a fasta file by using a sliding window and merging overlapping windows satisfying the CpG island definition.
+* [Meth_Seg](Meth_Seg.md): Bayesian methylome segmentation algorithm
+* [Meth_Comp](Meth_Comp.md): compare Methylation level between several samples 
+* [Comp_Report](Comp_Report.md): generate an interactive HTML report for top significant differentially methylated intervals
 
 pycoMeth generates extensive tabulated reports and BED files which can be loaded in a genome browser. In addition, an interactive HTML report of differentially
 methylated intervals/islands can also generated at the end of the analysis.
