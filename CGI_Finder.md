@@ -4,9 +4,9 @@ Simple method to find putative CpG islands in DNA sequences by using a sliding w
 
 In order for a CpG island to be called, it must fulfill three criteria:
 
-* Sufficient lenght. Threshold set my "-w" argument, default 0.
-* Sufficient GC content computed as $\frac{N_C + N_G}{N}$. Threshold set by "-c" argument, default 0.5.
-* Sufficient normalized CpG ratio, computed as $\frac{N_CG N}{N_C N_G}$. Threshold set by "-r" argument, default 0.6.
+* Sufficient lenght. Threshold set my `-w` argument, default 0.
+* Sufficient GC content computed as (N_C + N_G) / N. Threshold set by `-c` argument, default 0.5.
+* Sufficient normalized CpG ratio, computed as (N_CG * N) / (N_C * N_G). Threshold set by `-r` argument, default 0.6.
 
 ## Usage
     pycometh CGI_Finder [-h] -f REF_FASTA_FN [-b OUTPUT_BED_FN] [-t OUTPUT_TSV_FN] [-m MERGE_GAP] 
