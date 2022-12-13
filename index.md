@@ -65,9 +65,9 @@ The API, command line interface, and implementation might change without retro-c
 ### pycoMeth example HTML report
 
 
-[Example HTML report 1](examples/pycometh_report1.html)
+[Example HTML summary report](examples/pycometh_report.html)
 
-[Example HTML report 2](examples/pycometh_report2.html)
+[Example HTML interval report](examples/interval_reports/interval_0020_chr19-44756986-44758607.html)
 
 ---
 
