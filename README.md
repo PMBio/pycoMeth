@@ -42,14 +42,14 @@ A more detailed usage documentation can be found at https://snajder-r.github.io/
 
 ### pycoMeth workflow
 
-![Workflow](https://snajder-r.github.io/pycoMeth/images/overview.svg)
+![Workflow](https://pmbio.github.io/pycoMeth/images/overview.svg)
 
 
 ### pycoMeth example HTML report
 
-[Example HTML report 1](https://snajder-r.github.io/pycoMeth/examples/pycometh_report1.html)
+[Example HTML report 1](https://pmbio.github.io/pycoMeth/examples/pycoMeth_summary_report.html)
 
-[Example HTML report 2](https://snajder-r.github.io/pycometh/examples/pycometh_report2.html)
+[Example HTML interval report](https://pmbio.github.io/pycoMeth/examples/interval_reports/interval_0020_chr19-44756986-44758607.html)
 
 ---
 
