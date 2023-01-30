@@ -38,7 +38,7 @@ Or using pip:
 
 ### Documentation
 
-A more detailed usage documentation can be found at https://snajder-r.github.io/pycoMeth/
+A more detailed usage documentation can be found at https://pmbio.github.io/pycoMeth/
 
 ### pycoMeth workflow
 
