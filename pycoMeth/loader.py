@@ -49,6 +49,10 @@ class MetH5Loader:
         sample_reads = {}
         for sample_id, hf in self.sample_hf_files.items():
             chrom_container = hf[interval.chr_name]
+
+            if chrom_container is None:
+                continue
+
             interval_container = chrom_container.get_values_in_range(interval.start, interval.end)
             
             if interval_container is None:
